@@ -47,3 +47,24 @@ renv/staging/
 # Posit assistant staging
 **/.posit/staging/
 **/.posit/assistant/
+
+# Analysis folders and scratch scripts not fully implemented yet.
+# The `/*` + `!README.md` pairs keep those READMEs versioned: git cannot
+# re-include a file under a directory excluded outright, so only the
+# folder contents are ignored.
+/Epi.Maps/*
+!/Epi.Maps/README.md
+/Risk.Factors/*
+!/Risk.Factors/README.md
+/Spread.Risk/*
+!/Spread.Risk/README.md
+/Transmission/*
+!/Transmission/README.md
+/OutPut/
+/scripts/
+/tests/
+
+# Scratch / one-off files at the project root
+/data.test.R
+/json.dataPrep.FormName.R
+/results_sample_positivity.md
