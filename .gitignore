@@ -1,0 +1,49 @@
+# macOS
+.DS_Store
+
+# R history and sessions
+.Rhistory
+.RData
+.Rdata
+.Rproj.user
+*.Rproj
+.httr-oauth
+.Renviron
+.Rprofile
+
+# IDE / tool state
+.idea/
+.codex-edit/
+.posit/
+.quarto/
+.kilo/
+.plans/
+.vscode/
+.claude/
+
+# Rendered outputs (keep source .qmd / .Rmd)
+*.html
+*.pdf
+*_files/
+
+# Backup / temp files
+*.new
+
+# Data (typically large / sensitive)
+data/raw/
+*.csv
+*.xlsx
+*.parquet
+
+# R package build artifacts
+*.tar.gz
+.Rcheck/
+
+# renv
+renv/library/
+renv/local/
+renv/staging/
+
+# Posit assistant staging
+**/.posit/staging/
+**/.posit/assistant/

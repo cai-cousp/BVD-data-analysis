@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.24">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="dcterms.date" content="2026-07-18">
+
+<title>Methodological Note — Weekly Alert Thresholds, EVD17 Response</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="methods_note_alert_thresholds_files/libs/clipboard/clipboard.min.js"></script>
+<script src="methods_note_alert_thresholds_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="methods_note_alert_thresholds_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="methods_note_alert_thresholds_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="methods_note_alert_thresholds_files/libs/quarto-html/popper.min.js"></script>
+<script src="methods_note_alert_thresholds_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="methods_note_alert_thresholds_files/libs/quarto-html/anchor.min.js"></script>
+<link href="methods_note_alert_thresholds_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="methods_note_alert_thresholds_files/libs/quarto-html/quarto-syntax-highlighting-dc55a5b9e770e841cd82e46aadbfb9b0.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="methods_note_alert_thresholds_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="methods_note_alert_thresholds_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="methods_note_alert_thresholds_files/libs/bootstrap/bootstrap-82a8e0681529fff444bbc39736ff6b3a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#purpose" id="toc-purpose" class="nav-link active" data-scroll-target="#purpose"><span class="header-section-number">0.1</span> Purpose</a></li>
+  <li><a href="#data-inputs" id="toc-data-inputs" class="nav-link" data-scroll-target="#data-inputs"><span class="header-section-number">0.2</span> Data inputs</a></li>
+  <li><a href="#approach-a-baseline-mortality" id="toc-approach-a-baseline-mortality" class="nav-link" data-scroll-target="#approach-a-baseline-mortality"><span class="header-section-number">0.3</span> Approach A: Baseline mortality</a></li>
+  <li><a href="#approach-b-beni-historical-benchmark" id="toc-approach-b-beni-historical-benchmark" class="nav-link" data-scroll-target="#approach-b-beni-historical-benchmark"><span class="header-section-number">0.4</span> Approach B: Beni historical benchmark</a></li>
+  <li><a href="#approach-c-case-derived-expectations" id="toc-approach-c-case-derived-expectations" class="nav-link" data-scroll-target="#approach-c-case-derived-expectations"><span class="header-section-number">0.5</span> Approach C: Case-derived expectations</a>
+  <ul class="collapse">
+  <li><a href="#c.1-epidemiological-parameters" id="toc-c.1-epidemiological-parameters" class="nav-link" data-scroll-target="#c.1-epidemiological-parameters"><span class="header-section-number">0.5.1</span> C.1 Epidemiological parameters</a></li>
+  <li><a href="#c.2-epi-link-detection-method" id="toc-c.2-epi-link-detection-method" class="nav-link" data-scroll-target="#c.2-epi-link-detection-method"><span class="header-section-number">0.5.2</span> C.2 Epi-link detection method</a></li>
+  <li><a href="#c.3-back-cfr-detection-method" id="toc-c.3-back-cfr-detection-method" class="nav-link" data-scroll-target="#c.3-back-cfr-detection-method"><span class="header-section-number">0.5.3</span> C.3 Back-CFR detection method</a></li>
+  <li><a href="#c.4-combining-detection-estimates" id="toc-c.4-combining-detection-estimates" class="nav-link" data-scroll-target="#c.4-combining-detection-estimates"><span class="header-section-number">0.5.4</span> C.4 Combining detection estimates</a></li>
+  <li><a href="#c.5-rolling-window-architecture" id="toc-c.5-rolling-window-architecture" class="nav-link" data-scroll-target="#c.5-rolling-window-architecture"><span class="header-section-number">0.5.5</span> C.5 Rolling-window architecture</a></li>
+  <li><a href="#c.6-poisson-offset-multiplier-model" id="toc-c.6-poisson-offset-multiplier-model" class="nav-link" data-scroll-target="#c.6-poisson-offset-multiplier-model"><span class="header-section-number">0.5.6</span> C.6 Poisson offset multiplier model</a></li>
+  </ul></li>
+  <li><a href="#threshold-synthesis" id="toc-threshold-synthesis" class="nav-link" data-scroll-target="#threshold-synthesis"><span class="header-section-number">0.6</span> Threshold synthesis</a></li>
+  <li><a href="#outputs" id="toc-outputs" class="nav-link" data-scroll-target="#outputs"><span class="header-section-number">0.7</span> Outputs</a></li>
+  <li><a href="#glossary" id="toc-glossary" class="nav-link" data-scroll-target="#glossary"><span class="header-section-number">0.8</span> Glossary</a></li>
+  <li><a href="#glossary-01_thresholds_synthesis.rds-english" id="toc-glossary-01_thresholds_synthesis.rds-english" class="nav-link" data-scroll-target="#glossary-01_thresholds_synthesis.rds-english"><span class="header-section-number">1</span> Glossary — 01_thresholds_synthesis.rds (English)</a></li>
+  <li><a href="#glossary-intermediate-parameters-01_intermediate_parameters.rds-english" id="toc-glossary-intermediate-parameters-01_intermediate_parameters.rds-english" class="nav-link" data-scroll-target="#glossary-intermediate-parameters-01_intermediate_parameters.rds-english"><span class="header-section-number">2</span> Glossary — Intermediate parameters (01_intermediate_parameters.rds, English)</a>
+  <ul class="collapse">
+  <li><a href="#caveats-and-limitations" id="toc-caveats-and-limitations" class="nav-link" data-scroll-target="#caveats-and-limitations"><span class="header-section-number">2.1</span> Caveats and limitations</a></li>
+  </ul></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="../../methods_note_alert_thresholds.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Methodological Note — Weekly Alert Thresholds, EVD17 Response</h1>
+<p class="subtitle lead">Documenting the implemented threshold synthesis and its assumptions</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">July 18, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="purpose" class="level2" data-number="0.1">
+<h2 data-number="0.1" class="anchored" data-anchor-id="purpose"><span class="header-section-number">0.1</span> Purpose</h2>
+<p>This note documents the threshold-generation workflow implemented in <code>R/01_alert_thresholds.R</code>. It describes how the script derives weekly alert thresholds per health zone (HZ) from three sources: baseline mortality, the historical Beni alert dataset, and case-derived expectations from the current line list.</p>
+<p>The operational question is:</p>
+<blockquote class="blockquote">
+<p>Given the population size and current epidemiology of a health zone, how many validated alerts for cases and deaths in a week are unusual enough to warrant review?</p>
+</blockquote>
+<p>The script combines multiple imperfect sources because no single method is reliable in this setting. The goal is to produce a defensible threshold table and preserve the intermediate estimates used to build it.</p>
+<hr>
+</section>
+<section id="data-inputs" class="level2" data-number="0.2">
+<h2 data-number="0.2" class="anchored" data-anchor-id="data-inputs"><span class="header-section-number">0.2</span> Data inputs</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Input</th>
+<th>Source</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Cleaned EVD line list</td>
+<td>Latest file under <code>../DataCleaning/data/Output/</code></td>
+<td>Current cases, deaths, CFR, detection, Rt, and recent alert counts</td>
+</tr>
+<tr class="even">
+<td>Beni historical alerts</td>
+<td><code>data/Alerts/Alert_Beni.rds</code></td>
+<td>Historical benchmark during low-positivity periods</td>
+</tr>
+<tr class="odd">
+<td>Population by HZ</td>
+<td><code>../data/PopulationParAge/DRC_ZS_DHIS2_Pop_2024.xlsx</code></td>
+<td>Denominator for per-capita thresholds</td>
+</tr>
+<tr class="even">
+<td>Crude mortality rate</td>
+<td>8.3 per 1,000 per year</td>
+<td>Baseline mortality assumption used for the first approach</td>
+</tr>
+</tbody>
+</table>
+<p>Population is projected from the 2024 DHIS2 baseline to the current year using compound annual growth in the script.</p>
+<hr>
+</section>
+<section id="approach-a-baseline-mortality" class="level2" data-number="0.3">
+<h2 data-number="0.3" class="anchored" data-anchor-id="approach-a-baseline-mortality"><span class="header-section-number">0.3</span> Approach A: Baseline mortality</h2>
+<p>This approach converts crude mortality into an expected weekly death count per HZ.</p>
+<p>For a health zone with population <span class="math inline">\(P\)</span> and crude mortality rate <span class="math inline">\(m\)</span> per 1,000 per year, the script computes:</p>
+<p><span class="math display">\[
+E[D_w] = \frac{P \times m}{1000} \times \frac{7}{365}
+\]</span></p>
+<p>The lower and upper thresholds are set as fixed 10% bounds around this expected weekly value in the implemented code:</p>
+<p><span class="math display">\[
+T_A^{lower} = 0.9 \times E[D_w], \qquad T_A^{upper} = 1.1 \times E[D_w]
+\]</span></p>
+<p>These are death-only thresholds.</p>
+<hr>
+</section>
+<section id="approach-b-beni-historical-benchmark" class="level2" data-number="0.4">
+<h2 data-number="0.4" class="anchored" data-anchor-id="approach-b-beni-historical-benchmark"><span class="header-section-number">0.4</span> Approach B: Beni historical benchmark</h2>
+<p>This approach uses validated alerts in the historical Beni dataset as an empirical reference.</p>
+<p>The implemented workflow is:</p>
+<ol type="1">
+<li>Restrict to validated alerts.</li>
+<li>Aggregate by HZ and epiweek.</li>
+<li>Compute positivity as:</li>
+</ol>
+<p><span class="math display">\[
+\text{positivity} = \frac{\text{positive samples}}{\text{sampled validated alerts}}
+\]</span></p>
+<p>For Beni, sampled alerts are proxied by non-missing laboratory results. 4. Define optimal weeks as those with positivity below 10%. 5. Within optimal weeks, compute weekly alert rates per 100,000 population. 6. Retain HZs with at least 50 validated alerts and case-alert rates in the top quartile. 7. Use the Beni reference values from the best-performing HZs as the benchmark rates. 8. Scale those rates to each target HZ population.</p>
+<p>The benchmark values are stored as case and death rates, then converted to HZ-specific alert counts by multiplying by population / 100,000.</p>
+<hr>
+</section>
+<section id="approach-c-case-derived-expectations" class="level2" data-number="0.5">
+<h2 data-number="0.5" class="anchored" data-anchor-id="approach-c-case-derived-expectations"><span class="header-section-number">0.5</span> Approach C: Case-derived expectations</h2>
+<p>This approach uses the current line list to estimate the number of alerts that should be expected from the outbreak context in each HZ. It is the only approach that adapts to the <em>current epidemic state</em> of each zone.</p>
+<p>Approach C chains five building blocks, documented below:</p>
+<ol type="1">
+<li><strong>Epidemiological parameters</strong> estimated per HZ (CFR, back-calculated CFR, growth rate, <span class="math inline">\(R_t\)</span>, SAR).</li>
+<li><strong>Detection rate from epi-links</strong> — the proportion of confirmed cases found through active contact tracing.</li>
+<li><strong>Detection rate from back-calculation</strong> — the proportion of true cases actually detected, inferred from observed deaths.</li>
+<li><strong>Combination</strong> of the two detection estimates into a single rate used to back-calculate true case counts.</li>
+<li><strong>Poisson offset multiplier model</strong> that translates estimated true cases into expected validated-alert counts, producing <span class="math inline">\(\beta_c\)</span> and <span class="math inline">\(\beta_d\)</span>.</li>
+</ol>
+<p>The case-derived thresholds are therefore window-specific and HZ-specific, and they are merged with the baseline and Beni-derived thresholds in the final synthesis table.</p>
+<section id="c.1-epidemiological-parameters" class="level3" data-number="0.5.1">
+<h3 data-number="0.5.1" class="anchored" data-anchor-id="c.1-epidemiological-parameters"><span class="header-section-number">0.5.1</span> C.1 Epidemiological parameters</h3>
+<p>For each HZ, the script estimates:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th>Function</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CFR (<code>cfr_used</code>)</td>
+<td><code>compute_cfr_by_hz()</code></td>
+<td>Deaths among confirmed cases / confirmed cases; pooled CFR used when HZ has &lt; 5 confirmed cases</td>
+</tr>
+<tr class="even">
+<td>Back-calculated CFR</td>
+<td><code>compute_cfr_backcalc_by_hz()</code></td>
+<td>See C.3</td>
+</tr>
+<tr class="odd">
+<td>Growth rate <span class="math inline">\(r\)</span></td>
+<td><code>compute_growth_rate_by_hz()</code></td>
+<td>Exponential growth rate from <code>incidence::fit()</code> in rolling 7-day windows; pooled across all HZs as fallback</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(R_t\)</span></td>
+<td><code>compute_rt_hz()</code></td>
+<td><code>EpiEstim</code> parametric SI (mean 12, sd 5 days) over last 21 days of onset dates; pooled <span class="math inline">\(R_t\)</span> as fallback for sparse HZs</td>
+</tr>
+<tr class="odd">
+<td>SAR</td>
+<td>Derived</td>
+<td><span class="math inline">\(R_t / k\)</span> where <span class="math inline">\(k = 10\)</span> contacts per case; capped and coerced to 0.1 when missing</td>
+</tr>
+<tr class="even">
+<td>Expected deaths</td>
+<td>Derived</td>
+<td><span class="math inline">\(\hat{C}_{\text{true}} \times \text{CFR}\)</span></td>
+</tr>
+<tr class="odd">
+<td>Expected secondary cases</td>
+<td>Derived</td>
+<td><span class="math inline">\(\hat{C}_{\text{true}} \times k \times \text{SAR}\)</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="c.2-epi-link-detection-method" class="level3" data-number="0.5.2">
+<h3 data-number="0.5.2" class="anchored" data-anchor-id="c.2-epi-link-detection-method"><span class="header-section-number">0.5.2</span> C.2 Epi-link detection method</h3>
+<p>The epi-link method estimates the detection rate from the proportion of confirmed cases that were found through active contact tracing (marked by an epidemiologic link), among confirmed cases with valid epidemiologic-link data.</p>
+<p><span class="math display">\[
+\rho_{\text{epilink}} = \frac{n_{\text{epilink}}}{n_{\text{conf, valid epilink}}}
+\]</span></p>
+<p>where <span class="math inline">\(n_{\text{epilink}}\)</span> is the number of confirmed/positive cases with <code>alert_lien_epidemiologic == "Oui"</code>, and <span class="math inline">\(n_{\text{conf, valid epilink}}\)</span> is the number of confirmed cases with non-missing epidemiologic-link data.</p>
+<p>When <span class="math inline">\(n_{\text{conf, valid epilink}} &lt; 5\)</span>, the HZ-specific rate is replaced by the pooled (all-HZ) detection rate:</p>
+<p><span class="math display">\[
+\rho_{\text{epilink, pooled}} = \frac{\sum_{\text{all HZ}} n_{\text{epilink}}}{\sum_{\text{all HZ}} n_{\text{conf, valid epilink}}}
+\]</span></p>
+<p>The under-detection rate is <span class="math inline">\(1 - \rho_{\text{epilink}}\)</span>.</p>
+<p><strong>Rationale.</strong> A high proportion of epi-linked cases suggests active case-finding is working well; a low proportion suggests many cases are arriving through passive routes and may reflect under-detection.</p>
+</section>
+<section id="c.3-back-cfr-detection-method" class="level3" data-number="0.5.3">
+<h3 data-number="0.5.3" class="anchored" data-anchor-id="c.3-back-cfr-detection-method"><span class="header-section-number">0.5.3</span> C.3 Back-CFR detection method</h3>
+<p>The back-CFR method estimates the detection rate from observed deaths, in two stages.</p>
+<p><strong>Stage 1 — Back-calculated CFR.</strong> The back-calculated CFR enlarges the denominator beyond confirmed cases alone by including eligible deaths that were never laboratory-confirmed:</p>
+<p><span class="math display">\[
+\text{CFR}_{\text{backcalc}} = \frac{D_{\text{eligible}}}{N_{\text{confirmed}} + D_{\text{eligible, unconfirmed}}}
+\]</span></p>
+<p>where <span class="math inline">\(D_{\text{eligible}}\)</span> is the number of <em>eligible deaths</em> — observed deaths (alert status or final status = “Décédé”) with a positive or unavailable laboratory result — and <span class="math inline">\(D_{\text{eligible, unconfirmed}}\)</span> is the subset of those deaths that are not also confirmed cases. Exact binomial 95% confidence intervals are computed. HZs with denominator &lt; 5 fall back to the pooled CFR.</p>
+<p><strong>Stage 2 — Detection rate from deaths.</strong> The detection rate is the ratio of detected confirmed cases to the estimated true case count, where true cases are back-calculated from observed deaths:</p>
+<p><span class="math display">\[
+\rho_{\text{backcalc}} = \frac{N_{\text{detected}}}{\hat{C}_{\text{true}}}
+\]</span></p>
+<p>with the true case estimate:</p>
+<p><span class="math display">\[
+\hat{C}_{\text{true}} = \frac{D_{\text{observed}} \times (1 + r/\beta)^{\alpha}}{\text{CFR}_{\text{backcalc}}}
+\]</span></p>
+<p><strong>Delay-distribution adjustment.</strong> The term <span class="math inline">\((1 + r/\beta)^{\alpha}\)</span> corrects the right-censoring bias that arises because deaths lag behind case onsets during a growing or declining epidemic. The onset-to-death delay is modelled as Gamma-distributed with:</p>
+<p><span class="math display">\[
+\alpha = \left(\frac{\mu}{\sigma}\right)^2, \qquad \beta = \frac{\mu}{\sigma^2}
+\]</span></p>
+<p>where <span class="math inline">\(\mu = 11.37\)</span> days and <span class="math inline">\(\sigma = 5.41\)</span> days (literature values for EVD onset-to-death delay). The exponential growth rate <span class="math inline">\(r\)</span> is estimated per HZ per rolling window. When <span class="math inline">\(r &gt; 0\)</span> (growing epidemic), the adjustment factor exceeds 1, inflating the estimated true case count to account for deaths that have not yet been observed; when <span class="math inline">\(r &lt; 0\)</span>, it is less than 1.</p>
+<p>Confidence intervals on <span class="math inline">\(\rho_{\text{backcalc}}\)</span> combine the CFR confidence bounds with the growth-rate confidence bounds to produce <code>detection_rate_low</code> (pessimistic) and <code>detection_rate_high</code> (optimistic).</p>
+</section>
+<section id="c.4-combining-detection-estimates" class="level3" data-number="0.5.4">
+<h3 data-number="0.5.4" class="anchored" data-anchor-id="c.4-combining-detection-estimates"><span class="header-section-number">0.5.4</span> C.4 Combining detection estimates</h3>
+<p>The two detection estimates are combined into a single rate per HZ:</p>
+<ol type="1">
+<li><p><strong>Validity filter.</strong> Only detection rates satisfying <span class="math inline">\(0 &lt; \rho \leq 1\)</span> are retained. Rates outside this range (e.g., back-calc estimates &gt; 1 from sparse data) are set to missing.</p></li>
+<li><p><strong>Averaging.</strong> The combined detection rate is the arithmetic mean of valid sources:</p></li>
+</ol>
+<p><span class="math display">\[
+\rho_{\text{combined}} = \frac{1}{S} \sum_{s \in \{\text{backcalc},\, \text{epilink}\}} \rho_s
+\]</span></p>
+<p>where <span class="math inline">\(S\)</span> is the number of valid sources (0, 1, or 2). If neither source is valid, the combined rate is missing and downstream true-case estimates are missing.</p>
+<ol start="3" type="1">
+<li><strong>True case estimation.</strong> Estimated true cases in the recent window:</li>
+</ol>
+<p><span class="math display">\[
+\hat{C}_{\text{true, recent}} = \frac{C_{\text{detected, recent}}}{\rho_{\text{combined}}}
+\]</span></p>
+<p>where <span class="math inline">\(C_{\text{detected, recent}}\)</span> is the count of confirmed/positive cases in the most recent 7-day window. For the most recent window, this count may be replaced by a growth-model projection (<code>predicted_last_count</code>) to mitigate reporting-delay right-censoring.</p>
+<ol start="4" type="1">
+<li><strong>Source tracking.</strong> The output records which methods contributed (<code>detection_rate_source_names</code>: “backcalc”, “epilink”, or “backcalc,epilink”) and the combination status (<code>detection_rate_combined_status</code>: “averaged”, “single_source”, or “no_valid_detection_rate”).</li>
+</ol>
+</section>
+<section id="c.5-rolling-window-architecture" class="level3" data-number="0.5.5">
+<h3 data-number="0.5.5" class="anchored" data-anchor-id="c.5-rolling-window-architecture"><span class="header-section-number">0.5.5</span> C.5 Rolling-window architecture</h3>
+<p>Approach C produces time-varying thresholds using non-overlapping windows:</p>
+<ul>
+<li><strong>Window generation.</strong> Non-overlapping 7-day windows are generated backward from the most recent confirmed-case onset date. Each window is identified by a <code>threshold_time_key</code> (its start date) and carries a <code>recent_case_window_start</code> / <code>recent_case_window_end</code> pair (the exposure period) and a <code>threshold_valid_from</code> / <code>threshold_valid_to</code> pair (the period during which the threshold applies).</li>
+<li><strong>Reporting-delay guard.</strong> The last <code>n_copy_last = 1</code> window copies its growth-rate estimate (and consequently its multiplier estimates) from the preceding window, because the most recent days are subject to right-censoring from notification delays.</li>
+<li><strong>Pooled fallback.</strong> A pooled (all-HZ combined) growth rate is computed for each window date and used when the HZ-specific estimate is unavailable (too few cases, fit failure).</li>
+<li><strong>Analysis bounds.</strong> Windows are bounded by <code>analysis_start_date</code> (max of earliest confirmed-case date, 2026-04-01) and <code>analysis_end_date</code> (min of latest confirmed-case date, today).</li>
+</ul>
+</section>
+<section id="c.6-poisson-offset-multiplier-model" class="level3" data-number="0.5.6">
+<h3 data-number="0.5.6" class="anchored" data-anchor-id="c.6-poisson-offset-multiplier-model"><span class="header-section-number">0.5.6</span> C.6 Poisson offset multiplier model</h3>
+<p>For each HZ and threshold window, a Poisson GLM with log-link is fitted to estimate the alert multipliers <span class="math inline">\(\beta_c\)</span> (case-alert) and <span class="math inline">\(\beta_d\)</span> (death-alert):</p>
+<p><span class="math display">\[
+\log E[A_w] = \log(E_w) + \beta_0
+\]</span></p>
+<p>where <span class="math inline">\(A_w\)</span> is the validated-alert count in epiweek <span class="math inline">\(w\)</span> (alive alerts for <span class="math inline">\(\beta_c\)</span>, dead alerts for <span class="math inline">\(\beta_d\)</span>), and <span class="math inline">\(E_w\)</span> is the expected exposure. The multiplier is <span class="math inline">\(\beta = \exp(\beta_0)\)</span>.</p>
+<p><strong>Exposure allocation.</strong> The HZ-level total estimated true cases is allocated across epiweeks in proportion to detected confirmed cases:</p>
+<p><span class="math display">\[
+E_w^{\text{case}} = \hat{C}_{\text{true, recent}} \times \frac{c_w}{\sum_{w} c_w}, \qquad E_w^{\text{death}} = \hat{C}_{\text{true, recent}} \times \text{CFR} \times \frac{c_w}{\sum_{w} c_w}
+\]</span></p>
+<p>where <span class="math inline">\(c_w\)</span> is the detected confirmed-case count in epiweek <span class="math inline">\(w\)</span>.</p>
+<p><strong>Dispersion correction.</strong> Standard errors are scaled by <span class="math inline">\(\sqrt{\max(1, \phi)}\)</span> where <span class="math inline">\(\phi = \text{deviance} / \text{df}_{\text{residual}}\)</span> is the dispersion estimate, producing quasi-Poisson-style intervals under over-dispersion.</p>
+<p><strong>Fallback.</strong> If fewer than <code>min_model_weeks = 2</code> epiweeks have positive exposure, the GLM is not fitted. A simple rate ratio <span class="math inline">\(\beta = \sum A_w / \sum E_w\)</span> is used instead, with exact Poisson confidence intervals. If total exposure is zero or non-finite, the multiplier is missing and a pooled multiplier (computed across all HZs from validated alerts over estimated true cases) is substituted at synthesis time.</p>
+<p><strong>Interpretation.</strong> <span class="math inline">\(\beta &gt; 1\)</span> means the alert system generates more validated alerts than predicted by the estimated true burden (possibly including non-EVD alerts); <span class="math inline">\(\beta &lt; 1\)</span> means under-ascertainment relative to estimated true cases.</p>
+<p><strong>Threshold construction.</strong> The case-derived thresholds combine a non-zero baseline floor (from Approach B) with the multiplier-applied expected count:</p>
+<p><span class="math display">\[
+T_C^{\text{lower}} = T_B^{\text{baseline}} + \beta_{\text{low}} \times E, \qquad T_C^{\text{upper}} = T_B^{\text{baseline}} + \beta_{\text{high}} \times E
+\]</span></p>
+<p>where <span class="math inline">\(T_B^{\text{baseline}}\)</span> is the Approach B baseline alert count (<code>baseline_alive_alerts</code> for cases, <code>baseline_death_alerts</code> for deaths), and <span class="math inline">\(E\)</span> is the expected count (<code>estimated_true_cases_recent</code> for cases, <code>expected_deaths</code> for deaths).</p>
+<hr>
+</section>
+</section>
+<section id="threshold-synthesis" class="level2" data-number="0.6">
+<h2 data-number="0.6" class="anchored" data-anchor-id="threshold-synthesis"><span class="header-section-number">0.6</span> Threshold synthesis</h2>
+<p>The final synthesis table combines the three approaches into a single set of thresholds per HZ and threshold window.</p>
+<p>In the implemented code:</p>
+<ul>
+<li><code>Alert_case_lower</code> and <code>Alert_case_upper</code> average the Beni benchmark with the case-derived lower and upper thresholds.</li>
+<li><code>Alert_death_lower</code> and <code>Alert_death_upper</code> average the baseline mortality threshold, the Beni benchmark, and the case-derived threshold.</li>
+<li>Central thresholds are then computed as the midpoint between the lower and upper bounds.</li>
+<li>All numeric threshold columns are rounded to whole numbers before saving.</li>
+</ul>
+<p>The script also saves a list of intermediate parameter tables, including CFR, detection, growth, recent cases, multipliers, Rt/SAR, baseline mortality, Beni benchmark summaries, and case-derived threshold components.</p>
+<hr>
+</section>
+<section id="outputs" class="level2" data-number="0.7">
+<h2 data-number="0.7" class="anchored" data-anchor-id="outputs"><span class="header-section-number">0.7</span> Outputs</h2>
+<p>The script writes the following files to the dated output directory:</p>
+<ul>
+<li><code>01_thresholds_synthesis.rds</code></li>
+<li><code>01_thresholds_synthesis.xlsx</code></li>
+<li><code>synthesis_short.xlsx</code></li>
+<li><code>01_intermediate_parameters.rds</code></li>
+<li><code>EpiSize_BDV.xlsx</code></li>
+</ul>
+<p>These outputs are the inputs to the trend analysis script.</p>
+<hr>
+</section>
+<section id="glossary" class="level2" data-number="0.8">
+<h2 data-number="0.8" class="anchored" data-anchor-id="glossary"><span class="header-section-number">0.8</span> Glossary</h2>
+<p>The column-level glossary for <code>01_thresholds_synthesis.rds</code> is included below.</p>
+</section>
+<section id="glossary-01_thresholds_synthesis.rds-english" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Glossary — 01_thresholds_synthesis.rds (English)</h1>
+<ul>
+<li>zone_sante_notification: Health zone name used for notifications.</li>
+<li>Province: Province containing the health zone.</li>
+<li>Population: Projected population for the health zone (DHIS2 2024 projected to current year).</li>
+<li>expected_weekly_deaths_cmr: Expected number of community deaths per week computed from the crude mortality rate (CMR).</li>
+<li>death_threshold_lower_A: Lower death threshold from Approach A (baseline mortality; 0.9 × expected deaths in implemented code).</li>
+<li>death_threshold_upper_A: Upper death threshold from Approach A (baseline mortality; 1.1 × expected deaths).</li>
+<li>alert_case_threshold_lower_B: Lower case-alert benchmark from Approach B (Beni historical rates scaled to HZ population).</li>
+<li>alert_case_threshold_upper_B: Upper case-alert benchmark from Approach B.</li>
+<li>alert_death_threshold_lower_B: Lower death-alert benchmark from Approach B.</li>
+<li>alert_death_threshold_upper_B: Upper death-alert benchmark from Approach B.</li>
+<li>threshold_time_key: Identifier for the threshold window (anchor date or window start used by the synthesis).</li>
+<li>threshold_epiweek: The epiweek (week start date) associated with the threshold window.</li>
+<li>recent_case_window_start: Start date of the recent case window used for case-derived estimates.</li>
+<li>recent_case_window_end: End date of the recent case window used for case-derived estimates.</li>
+<li>recent_case_window_days: Length in days of the recent window.</li>
+<li>recent_case_anchor_date: Anchor date for the recent-case window.</li>
+<li>alert_case_threshold_C: Central (point) case-alert threshold from Approach C (case-derived expectation); equals beta_c multiplied by estimated_true_cases_recent.</li>
+<li>alert_case_threshold_lower_C: Lower case-alert threshold from Approach C; equals beta_c_low multiplied by estimated_true_cases_recent.</li>
+<li>alert_case_threshold_upper_C: Upper case-alert threshold from Approach C; equals beta_c_high multiplied by estimated_true_cases_recent.</li>
+<li>alert_death_threshold_C: Central death-alert threshold from Approach C; equals beta_d multiplied by expected_deaths.</li>
+<li>alert_death_threshold_lower_C: Lower death-alert threshold from Approach C; equals beta_d_low multiplied by expected_deaths.</li>
+<li>alert_death_threshold_upper_C: Upper death-alert threshold from Approach C; equals beta_d_high multiplied by expected_deaths.</li>
+<li>Alert_case_lower: Final synthesis lower bound for case alerts (average of B and C lower inputs per implemented code).</li>
+<li>Alert_case_upper: Final synthesis upper bound for case alerts.</li>
+<li>Alert_death_lower: Final synthesis lower bound for death alerts (average of A, B and C lower inputs).</li>
+<li>Alert_death_upper: Final synthesis upper bound for death alerts.</li>
+<li>Alert_case_threshold: Final central (point) case-alert threshold (midpoint of Alert_case_lower and Alert_case_upper).</li>
+<li>Alert_death_threshold: Final central (point) death-alert threshold (midpoint of Alert_death_lower and Alert_death_upper).</li>
+</ul>
+</section>
+<section id="glossary-intermediate-parameters-01_intermediate_parameters.rds-english" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> Glossary — Intermediate parameters (01_intermediate_parameters.rds, English)</h1>
+<p>The following columns appear in the case-derived component of <code>01_intermediate_parameters.rds</code> (<code>case_derived_params</code>) and the multiplier table.</p>
+<ul>
+<li>estimated_true_cases_recent: Estimated true incident cases in the recent 7-day window, computed as detected confirmed cases divided by the combined detection rate.</li>
+<li>estimated_true_cases_global: Estimated true incident cases across the entire analysis period, computed as cumulative detected cases divided by the combined detection rate.</li>
+<li>beta_c: Poisson offset multiplier for case (alive) alerts; exp(intercept) from the case-alert GLM fitting validated alive alerts against estimated true cases.</li>
+<li>beta_c_low: Lower 95% confidence bound for beta_c (dispersion-corrected or exact Poisson).</li>
+<li>beta_c_high: Upper 95% confidence bound for beta_c.</li>
+<li>beta_d: Poisson offset multiplier for death alerts; exp(intercept) from the death-alert GLM fitting validated dead alerts against expected deaths.</li>
+<li>beta_d_low: Lower 95% confidence bound for beta_d.</li>
+<li>beta_d_high: Upper 95% confidence bound for beta_d.</li>
+<li>expected_deaths: Expected deaths in the recent window, computed as estimated_true_cases_recent multiplied by the (direct) CFR.</li>
+<li>expected_secondary: Expected secondary cases, computed as estimated_true_cases_recent multiplied by contacts_per_case (10) and SAR (Rt / 10).</li>
+<li>detection_rate_adj: Combined detection rate; arithmetic mean of valid epi-link and back-CFR detection estimates (0 &lt; rate &lt;= 1).</li>
+<li>under_detection_rate: One minus detection_rate_adj.</li>
+<li>detection_rate_source_names: Which detection methods contributed (“backcalc”, “epilink”, or “backcalc,epilink”).</li>
+<li>detection_rate_combined_status: How the combined rate was derived (“averaged”, “single_source”, or “no_valid_detection_rate”).</li>
+<li>cfr_used: CFR used for expected-death calculations; HZ-specific when &gt;= 5 confirmed cases, otherwise the pooled (all-HZ) CFR.</li>
+<li>cfr_backcalc_used: Back-calculated CFR (eligible deaths / (confirmed + eligible unconfirmed deaths)); used in the back-calculation detection method.</li>
+<li>r_used: Exponential growth rate used in the delay-adjustment term; HZ-specific estimate or pooled fallback.</li>
+<li>sar: Secondary attack rate, computed as Rt / contacts_per_case; defaults to 0.1 when missing.</li>
+<li>pooled_beta_c: Pooled (all-HZ) case-alert multiplier, computed as total validated alive alerts / total estimated true cases; substituted when HZ-specific beta_c is missing.</li>
+<li>pooled_beta_d: Pooled (all-HZ) death-alert multiplier, computed as total validated dead alerts / total expected deaths; substituted when HZ-specific beta_d is missing.</li>
+<li>baseline_alive_alerts: Beni benchmark case-alert count scaled to HZ population (Approach B). Previously used as a non-zero floor in Approach C case thresholds; now retained as a reference value only (no longer added to Approach C formulas).</li>
+<li>baseline_death_alerts: Beni benchmark death-alert count scaled to HZ population (Approach B). Previously used as a non-zero floor in Approach C death thresholds; now retained as a reference value only (no longer added to Approach C formulas).</li>
+</ul>
+<hr>
+<section id="caveats-and-limitations" class="level2" data-number="2.1">
+<h2 data-number="2.1" class="anchored" data-anchor-id="caveats-and-limitations"><span class="header-section-number">2.1</span> Caveats and limitations</h2>
+<ul>
+<li>Population figures are projected from 2024 and may not reflect displacement or local demographic change.</li>
+<li>The crude mortality rate is applied as a fallback assumption and is not zone-specific.</li>
+<li><code>k = 10</code> contacts per case is a working assumption.</li>
+<li>The Beni benchmark depends on the definition of low-positivity periods and the quality of the historical dataset.</li>
+<li>The case-derived thresholds depend on sparse-data estimates and rolling-window model fitting, so uncertainty can be substantial in some HZs.</li>
+<li>The epi-link method assumes that <code>alert_lien_epidemiologic == "Oui"</code> indicates active case-finding; misclassification of this field biases the detection estimate.</li>
+<li>The back-CFR method assumes the onset-to-death delay distribution (Gamma, mean 11.37, sd 5.41 days) is correct for this setting; a different delay would change the delay-adjustment factor.</li>
+<li>The two detection rates are combined by simple unweighted averaging; no precision-weighting or hierarchical model is applied, so a noisy single-source estimate can outweigh a more stable paired estimate.</li>
+<li>The Poisson offset model assumes weekly true cases can be approximated by proportionally allocating the window total across epiweeks based on detected confirmed-case counts; if detection varied substantially across weeks within a window, this allocation is biased.</li>
+<li>The script is documentation of the implemented workflow, not a claim that each component is equally precise.</li>
+</ul>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

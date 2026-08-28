@@ -1,0 +1,311 @@
+---
+title: "Analyse du suivi des contacts — Maladie à virus Bundibugyo (MVE/B), RDC"
+subtitle: "Suivi de la dynamique des contacts, délais et taux de suivi par zone de santé"
+author: "IOA-CAI"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    theme: flatly
+    code-fold: true
+    self-contained: true
+    highlight-style: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+     echo = FALSE,
+     warning = FALSE,
+     message = FALSE,
+     fig.width = 12,
+     fig.height = 7,
+     dpi = 150
+)
+
+# Resolve project paths independently of the report's working directory.
+library(here)
+source(here::here("helpers", "paths.R"))
+
+# Load libraries
+pacman::p_load(
+     "openxlsx", "readxl", "incidence",
+     "stringdist", "lubridate",
+     "RColorBrewer", "wesanderson",
+     "dplyr", "tidyverse", "stringi",
+     "ggforce", "ggfittext", "ggthemes",
+     "ggrepel", "tidytext",
+     "zoo", "forecast",
+     "DescTools", "kableExtra",
+     "plotly",
+     install = FALSE
+)
+
+# Source the main analysis script — all data objects are computed here
+# Setting contact.analysis.report_mode = TRUE skips file output (ggsave, save_kable, etc.)
+options(contact.analysis.report_mode = TRUE)
+source(here::here("Contacts.Analysis", "Contact_analysis.R"))
+```
+
+## Résumé des contacts et cas sources
+
+```{r resume-global, results='asis'}
+# Highlighted values
+hl <- function(x) {
+     paste0(
+          '<span style="background-color: #d4edda; padding: 2px 8px; border-radius: 4px; ',
+          'font-weight: bold; font-size: 1.15em; color: #155724;">', x, "</span>"
+     )
+}
+
+o3 <- contact.3w.overall
+
+cat(paste0(
+     "Au total, ", hl(format(ratio.contact_case$n.contacts, big.mark = " ")),
+     " **contacts** ont été identifiés et listés à partir de ",
+     hl(format(ratio.contact_case$n.cases, big.mark = " ")),
+     " **cas sources** confirmés de MVE/B, soit un ratio de ",
+     hl(ratio.contact_case$ratio.contact_case),
+     " **contacts par cas source**.",
+     " Le nombre médian de contacts par cas source est de ",
+     hl(median.contact_case), ".",
+     " Parmi ces contacts, ",
+     hl(format(contacts.jamais.vus$ncontacts.jamais.vus, big.mark = " ")),
+     " (",
+     hl(paste0(contacts.jamais.vus$perct.contacts.jamais.vus, " %")),
+     ") n'ont jamais été suivis (pas de date de début de suivi enregistrée).",
+     " Sur la fenêtre des 3 dernières semaines (21 jours), ",
+     hl(format(o3$n.contacts, big.mark = " ")),
+     " contacts ont été enrôlés pour ",
+     hl(format(o3$n.source.cases, big.mark = " ")),
+     " cas sources, soit un ratio de ",
+     hl(o3$ratio.contact.case),
+     " contacts par cas source et de ",
+     hl(o3$ratio.case.confirmed),
+     " cas sources par cas confirmé. ",
+     hl(paste0(o3$pct.followed.once, " %")),
+     " des contacts ont été vus au moins une fois ; ",
+     hl(format(o3$n.expected.visits, big.mark = " ")),
+     " visites attendues ont donné lieu à ",
+     hl(format(o3$n.achieved.visits, big.mark = " ")),
+     " visites réalisées (",
+     hl(paste0(o3$pct.visits, " %")),
+     "). Le suivi a été complété (21 jours) pour ",
+     hl(paste0(o3$pct.completed.21, " %")),
+     " des contacts, tandis que ",
+     hl(paste0(o3$pct.lofu, " %")),
+     " ont été perdus de vue."
+))
+```
+
+> **Interprétation épidémiologique** : Le ratio contacts/cas source est un indicateur fondamental de l'exhaustivité de la recherche des contacts. Pour le virus Bundibugyo (espèce _Orthoebolavirus bundibugyoense_), dont la transmission interhumaine repose principalement sur le contact direct avec les fluides corporels, un ratio adéquat permet de cartographier l'ensemble des chaînes de transmission potentielles. Un ratio faible peut signaler une sous-identification des contacts, exposant la réponse à un risque de transmission silencieuse. La médiane, moins sensible aux valeurs extrêmes que la moyenne, reflète le comportement typique de génération de contacts ; un écart entre médiane et moyenne suggère l'existence de cas à fort potentiel de dissémination (événements de super-propagation), phénomène documenté pour les filovirus.
+
+## Indicateurs de suivi des contacts — 3 dernières semaines
+
+```{r tbl-3w-prov, results='asis'}
+# Helper : nom(s) associé(s) au max d'un indicateur (gestion des ex aequo)
+top_names <- function(df, value_col, name_col) {
+     df <- df[!is.na(df[[value_col]]), ]
+     if (nrow(df) == 0) {
+          return(list(names = "—", value = NA_real_))
+     }
+     m <- max(df[[value_col]])
+     list(
+          names = paste(df[[name_col]][df[[value_col]] == m], collapse = ", "),
+          value = m
+     )
+}
+
+prov.best <- top_names(contact.3w.prov, "pct.completed.21", "province_notification")
+prov.worst <- top_names(contact.3w.prov, "pct.lofu", "province_notification")
+
+tbl.3w.prov <- contact.3w.prov |>
+     arrange(desc(n.contacts)) |>
+     rename(
+          Province = province_notification,
+          `Contacts` = n.contacts,
+          `Cas sources` = n.source.cases,
+          `Ratio contacts/cas` = ratio.contact.case,
+          `Ratio cas sources/confirmés` = ratio.case.confirmed,
+          `Contacts suivis >= 1 fois (%)` = pct.followed.once,
+          `Contacts suivis >= 1 fois (%) du total` = pct.followed.once.total,
+          `Visites attendues` = n.expected.visits,
+          `Visites réalisées (n)` = n.achieved.visits,
+          `Visites réalisées (%)` = pct.visits,
+          `Suivi complété (%)` = pct.completed.21,
+          `Perdus de vue (%)` = pct.lofu
+     ) |>
+     select(
+          Province, `Contacts`, `Cas sources`,
+          `Ratio contacts/cas`, `Ratio cas sources/confirmés`,
+          `Contacts suivis >= 1 fois (%)`, `Contacts suivis >= 1 fois (%) du total`,
+          `Visites attendues`,
+          `Visites réalisées (n)`, `Visites réalisées (%)`,
+          `Suivi complété (%)`, `Perdus de vue (%)`
+     ) |>
+     kbl(
+          escape = FALSE, align = "c",
+          caption = paste0(
+               "Indicateurs de suivi des contacts par province — 3 dernières semaines, ",
+               format(ref.date, "%d %B %Y")
+          )
+     ) |>
+     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) |>
+     add_header_above(c(" " = 1, "Indicateurs de suivi des contacts (3 dernières semaines)" = 11))
+
+tbl.3w.prov
+```
+
+> **Interprétation épidémiologique** : Sur la fenêtre des 3 dernières semaines (21 jours), la province affichant le meilleur taux de **suivi complété (21 jours)** est **`r prov.best$names`** (`r prov.best$value` %), traduisant une meilleure continuité du suivi post-exposition et une moindre probabilité de cas secondaires non détectés. À l'inverse, la province présentant le **plus fort taux de perdus de vue** est **`r prov.worst$names`** (`r prov.worst$value` %), signalant une rupture de la chaîne de surveillance et un risque élevé de transmission silencieuse. Ces disparités inter-provinciales doivent guider le redéploiement des ressources de suivi et l'investigation des barrières opérationnelles locales (accessibilité géographique, acceptabilité communautaire, couverture en ressources humaines).
+
+### Par zone de santé
+
+```{r tbl-3w-zs, results='asis'}
+zs.best <- top_names(contact.3w.zs, "pct.completed.21", "zone_sante_notification")
+zs.worst <- top_names(contact.3w.zs, "pct.lofu", "zone_sante_notification")
+
+tbl.3w.zs <- contact.3w.zs |>
+     arrange(province_notification, desc(n.contacts)) |>
+     rename(
+          Province = province_notification,
+          `Zone de Santé` = zone_sante_notification,
+          `Contacts` = n.contacts,
+          `Cas sources` = n.source.cases,
+          `Ratio contacts/cas` = ratio.contact.case,
+          `Ratio cas sources/confirmés` = ratio.case.confirmed,
+          `Contacts suivis >= 1 fois (%)` = pct.followed.once,
+          `Contacts suivis >= 1 fois (%) du total` = pct.followed.once.total,
+          `Visites attendues` = n.expected.visits,
+          `Visites réalisées (n)` = n.achieved.visits,
+          `Visites réalisées (%)` = pct.visits,
+          `Suivi complété (%)` = pct.completed.21,
+          `Perdus de vue (%)` = pct.lofu
+     ) |>
+     select(
+          Province, `Zone de Santé`,
+          `Contacts`, `Cas sources`,
+          `Ratio contacts/cas`, `Ratio cas sources/confirmés`,
+          `Contacts suivis >= 1 fois (%)`, `Contacts suivis >= 1 fois (%) du total`,
+          `Visites attendues`,
+          `Visites réalisées (n)`, `Visites réalisées (%)`,
+          `Suivi complété (%)`, `Perdus de vue (%)`
+     ) |>
+     kbl(
+          escape = FALSE, align = "c",
+          caption = paste0(
+               "Indicateurs de suivi des contacts par zone de santé — 3 dernières semaines, ",
+               format(ref.date, "%d %B %Y")
+          )
+     ) |>
+     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) |>
+     add_header_above(c(" " = 2, "Indicateurs de suivi des contacts (3 dernières semaines)" = 11))
+
+tbl.3w.zs
+```
+
+> **Interprétation épidémiologique** : À l'échelle des zones de santé, la ZS présentant le meilleur taux de **suivi complété (21 jours)** est **`r zs.best$names`** (`r zs.best$value` %), tandis que le **plus fort taux de perdus de vue** est observé dans la ZS de **`r zs.worst$names`** (`r zs.worst$value` %). Les zones de santé à forte proportion de perdus de vue constituent des points chauds de transmission potentielle : chaque contact perdu de vue peut évoluer vers un cas secondaire non détecté. Un suivi ciblé de ces ZS (rattrapage des contacts absents, renforcement des équipes de proximité, adaptation des stratégies de rétention) est indispensable pour restaurer l'intégrité de la surveillance.
+
+## Contacts jamais suivis par zone de santé
+
+```{r tbl-jamais-vus, results='asis'}
+# Build the kableExtra table of never-seen contacts by ZS
+tbl.jamais.vus <- contact.data_fu.JV |>
+     kbl(
+          escape = FALSE, align = "c",
+          caption = paste0(
+               "Contacts jamais suivis par zone de santé — ",
+               format(max.fill.date, "%d %B %Y")
+          )
+     ) |>
+     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive")) |>
+     add_header_above(c(" " = 1, "Contacts" = 3)) |>
+     column_spec(1, bold = TRUE, border_right = TRUE) |>
+     column_spec(2:4, border_right = TRUE)
+
+tbl.jamais.vus
+```
+
+> **Interprétation épidémiologique** : Les contacts jamais suivis représentent un risque majeur de transmission silencieuse. Ces contacts, pour lesquels aucune date de début de suivi n'a été enregistrée, constituent une brèche dans le dispositif de surveillance : chaque contact jamais vu est un cas secondaire potentiel non détecté. Les zones de santé affichant un pourcentage élevé de contacts jamais suivis doivent bénéficier d'une investigation immédiate pour comprendre les causes (refus communautaire, difficultés d'accès géographique, insuffisance des ressources de suivi, erreurs d'enregistrement) et rattraper ces contacts dans les plus brefs délais afin de restaurer l'intégrité de la surveillance épidémiologique.
+
+## Nombre de contacts par cas confirmé par zone de santé
+
+```{r tbl-ncontacts, results='asis'}
+tbl.ncontacts
+```
+
+> **Interprétation épidémiologique** : La répartition géographique du nombre de contacts par cas source met en évidence l'hétérogénéité spatiale de l'intensité de la recherche des contacts et de la dynamique de transmission. Les zones de santé affichant un ratio élevé peuvent correspondre à des foyers de transmission active avec des chaînes de contacts étendues, ou refléter une identification rigoureuse et exhaustive. À l'inverse, les ZS avec un ratio faible nécessitent une intensification de la recherche des contacts pour éviter que des chaînes de transmission ne passent inaperçues, compromettant ainsi l'objectif de briser toutes les chaînes de transmission.
+
+## Évolution du nombre de contacts par cas source dans le temps
+
+```{r contacts-over-time, fig.width=14, fig.height=7}
+contact.data_fu.n.zs.d.g
+```
+
+> **Interprétation épidémiologique** : L'évolution temporelle du nombre médian de contacts listés par cas source permet d'évaluer la soutenabilité de l'effort de recherche des contacts au fil de l'épidémie. Une tendance à la baisse peut indiquer soit une amélioration de la situation épidémiologique (moins de contacts à identifier car la transmission diminue), soit une fatigue opérationnelle des équipes de terrain. Une augmentation peut signaler une extension géographique de l'épidémie ou une intensification de la transmission communautaire, nécessitant un renforcement des capacités de suivi.
+
+## Délai de suivi des contacts par zone de santé
+
+```{r delays-by-zs, fig.width=14, fig.height=8}
+contact.data_fu.delays.4f.g
+```
+
+> **Interprétation épidémiologique** : Le délai entre la dernière exposition au cas source et le début effectif du suivi est un paramètre critique de la réactivité de la surveillance. Pour la MVE/B, dont la période d'incubation est de 21 jours, chaque jour de délai réduit la fenêtre de surveillance disponible pour détecter un cas secondaire. Un délai médian supérieur à 3-5 jours compromet significativement la capacité à identifier précocement les nouveaux cas et à interrompre les chaînes de transmission. Les zones de santé avec des délais prolongés nécessitent une investigation des causes (accessibilité géographique, refus communautaire, lacunes dans l'investigation des cas).
+
+## Délai de suivi par date d'exposition
+
+```{r delays-by-exposure, fig.width=14, fig.height=7}
+contact.data_fu.delays.linear.g
+```
+
+> **Interprétation épidémiologique** : L'analyse des délais de suivi par semaine épidémiologique d'exposition révèle les tendances temporelles de la réactivité du système. Une amélioration progressive au fil des semaines suggère un renforcement des capacités opérationnelles (meilleure investigation des cas, identification plus rapide des contacts). À l'inverse, une détérioration peut signaler une surcharge du système de surveillance face à un volume croissant de cas et de contacts, ou des difficultés logistiques croissantes dans les zones affectées.
+
+## Durée de suivi des contacts par cohorte
+
+```{r fu-duration, fig.width=14, fig.height=7}
+contact.data.fu.dfu.g
+```
+
+> **Interprétation épidémiologique** : La durée effective du suivi mesure la complétude de la surveillance des contacts sur les 21 jours réglementaires post-exposition. Les contacts suivis moins de 7 jours représentent un risque majeur de cas secondaires manqués, car les symptômes de la MVE/B peuvent apparaître à tout moment durant la période d'incubation. Le taux de perdus de vue (contacts absents 3 jours consécutifs ou plus) est un indicateur de performance critique : l'OMS recommande un taux inférieur à 5%. Un taux élevé de perdus de vue compromet directement la capacité à détecter et isoler rapidement les nouveaux cas, prolongeant ainsi les chaînes de transmission.
+
+## Tendances des taux de suivi des contacts
+
+```{r fu-trends, fig.width=14, fig.height=7}
+contact.fu.ts.all.ts.g
+```
+
+> **Interprétation épidémiologique** : Les tendances hebdomadaires des taux de contacts vus, non vus et perdus de vue fournissent une vue d'ensemble de la performance du système de suivi. Le taux de contacts vus est calculé rapporté aux **visites attendues de l'ensemble des contacts, y compris ceux jamais vus au moins une fois** (un jour de suivi attendu par contact sur la fenêtre de 21 jours post-exposition) ; les contacts jamais vus contribuent donc au dénominateur (visites attendues) mais pas au numérateur (visites vues), ce qui révèle les ruptures de suivi auparavant masquées. L'objectif opérationnel reste un taux de contacts vus quotidiennement supérieur ou égal à 95%. Les périodes où le taux de visites attendues non vues augmente peuvent coïncider avec des pics d'activité épidémique (surcharge des équipes), des contraintes logistiques (saison des pluies, insécurité), ou des problèmes d'acceptabilité communautaire. Les lignes de contacts devenus suspects et confirmés permettent de visualiser l'efficacité de la détection précoce parmi les contacts suivis.
+
+## Taux de suivi quotidiens par zone de santé — 21 derniers jours
+
+```{r tbl-daily-zs, results='asis'}
+tbl
+```
+
+> **Interprétation épidémiologique** : Ce tableau de bord opérationnel des 21 derniers jours permet une évaluation immédiate de la performance de chaque zone de santé. Le pourcentage affiché correspond aux visites vues rapportées aux **visites attendues de tous les contacts, y compris ceux jamais vus au moins une fois** ; un survol de cellule affiche le détail « Contacts vus : X / attendues : Y ». Le code couleur (vert ≥ 95%, orange 50-94%, rouge < 50%) identifie rapidement les zones nécessitant une intervention. Les ZS avec des taux persistemment bas sur plusieurs jours consécutifs signalent des problèmes structurels (insuffisance de ressources humaines, problèmes d'accès géographique, résistance communautaire) nécessitant une réponse ciblée. Les ZS avec des taux élevés et stables démontrent une capacité opérationnelle optimale de suivi des contacts.
+
+## Résumé général et recommandations
+
+### Synthèse des indicateurs clés
+
+L'analyse du suivi des contacts de la MVE/B en RDC révèle les éléments suivants :
+
+- **Volume de contacts** : `r hl(format(ratio.contact_case$n.contacts, big.mark = " "))` contacts identifiés pour `r hl(format(ratio.contact_case$n.cases, big.mark = " "))` cas sources, avec un ratio de `r hl(ratio.contact_case$ratio.contact_case)` contacts/cas et une médiane de `r hl(median.contact_case)` contacts par cas source.
+- **Hétérogénéité géographique** : La répartition des contacts par zone de santé montre des disparités importantes, certaines ZS affichant des ratios nettement supérieurs à d'autres.
+- **Délais de suivi** : Le délai médian entre exposition et début du suivi varie selon les zones de santé, avec des implications directes sur la fenêtre de surveillance disponible.
+- **Durée de suivi** : La proportion de contacts complétant les 21 jours de suivi et le taux de perdus de vue varient au fil du temps et entre les zones de santé.
+- **Taux de suivi quotidien** : Les tendances hebdomadaires montrent des fluctuations dans la proportion de contacts effectivement vus chaque jour.
+
+### Recommandations
+
+1. **Intensification de la recherche des contacts** : Les zones de santé affichant un ratio contacts/cas source inférieur à la médiane nationale doivent renforcer leurs équipes d'investigation pour identifier exhaustivement tous les contacts, en particulier les contacts indirects (catégories 3-4) souvent sous-déclarés.
+
+2. **Réduction des délais de mise sous suivi** : Les ZS où le délai médian entre dernière exposition et début du suivi dépasse 3 jours doivent investiguer les causes (retard dans la notification des cas, difficultés d'accès, refus communautaires) et mettre en place des mécanismes d'alerte rapide pour initier le suivi dans les 24-48 heures suivant l'identification.
+
+3. **Lutte contre les perdus de vue** : Les zones de santé avec un taux de perdus de vue supérieur à 5% doivent déployer des stratégies de rétention ciblées : implication des leaders communautaires, adaptation des horaires de visite, utilisation de la téléphonie mobile pour le suivi à distance, et renforcement de la sensibilisation sur l'importance du suivi complet des 21 jours.
+
+4. **Maintien d'un taux de suivi quotidien ≥ 95%** : Cet objectif opérationnel nécessite une planification adéquate des ressources humaines, une supervision régulière des équipes de suivi, et un système de monitoring quotidien permettant d'identifier et corriger les défaillances en temps réel.
+
+5. **Complétude du suivi sur 21 jours** : Assurer que la majorité des contacts complète l'intégralité de la période de surveillance post-exposition. Les contacts interrompant le suivi prématurément (moins de 7 jours) représentent un risque élevé de cas secondaires non détectés.
+
+6. **Renforcement de la surveillance des contacts symptomatiques** : Tout contact développant des symptômes compatibles avec la MVE/B doit être immédiatement isolé, testé et pris en charge. La proportion de contacts devenus suspects puis confirmés parmi l'ensemble des contacts suivis est un indicateur de l'efficacité de la détection précoce et de la réactivité de la chaîne de prise en charge.

@@ -1,0 +1,162 @@
+---
+title: "Methodological Note — Alert Trends and Adequacy Analysis, EVD17 Response"
+subtitle: "Describing the implemented adequacy metrics and trend tests"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    number-sections: true
+    theme: flatly
+  pdf:
+    toc: true
+    number-sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+```
+
+## Purpose
+
+This note documents the trend-analysis workflow implemented in `R/02_alert_trends.R`.
+It explains how the script turns the threshold synthesis from script 01 into weekly adequacy measures, smoothed counts, recent rankings, and Mann-Kendall trend tests.
+
+The operational question is:
+
+> Are health zones generating the expected volume of validated alerts, and is that volume changing over time?
+
+---
+
+## Data inputs
+
+| Input | Source | Role |
+|---|---|---|
+| Cleaned EVD line list | Latest file under `../DataCleaning/data/Output/` | Validated alerts from 2026 onward |
+| Threshold synthesis table | `output/01_thresholds_synthesis.rds` | HZ- and window-specific threshold values |
+
+The script loads both inputs, keeps validated alerts only, converts notification dates to `Date`, and restricts the analysis to 2026 onward.
+
+---
+
+## Alert counting and threshold joining
+
+Validated alerts are joined to the threshold synthesis and summarised by time window (week start date) and health zone.
+The analysis keeps separate counts for case alerts and death alerts, and it derives a `total_alerts` series for trend testing.
+
+The threshold columns are normalized to consistent names before adequacy is computed.
+
+---
+
+## Alert Adequacy Index (AAI)
+
+For each HZ and week, the script computes midpoint thresholds:
+
+$$
+T_{case}^{mid} = \frac{T_{case}^{lower} + T_{case}^{upper}}{2}
+$$
+
+$$
+T_{death}^{mid} = \frac{T_{death}^{lower} + T_{death}^{upper}}{2}
+$$
+
+Adequacy ratios are then defined as:
+
+$$
+A_{case} = \frac{case\_alerts}{T_{case}^{mid}}, \qquad
+A_{death} = \frac{death\_alerts}{T_{death}^{mid}}
+$$
+
+The Alert Adequacy Index is the mean of the available adequacy ratios:
+
+$$
+AAI = \text{mean}(A_{case}, A_{death})
+$$
+
+When no valid threshold midpoint is available, AAI is set to missing.
+
+### Interpretation
+
+- `AAI = 1` indicates alert volume matches the threshold midpoint.
+- `AAI < 1` indicates fewer alerts than expected.
+- `AAI > 1` indicates more alerts than expected.
+
+The script classifies adequacy using the following cut points:
+
+| Category | Condition |
+|---|---|
+| Under-alerting | `AAI < 0.75` |
+| Adequate | `0.75 <= AAI <= 2.0` |
+| Over-alerting | `AAI > 2.0` |
+
+For the recent summary table, the script averages AAI over the most recent 3 weeks.
+
+---
+
+## Temporal smoothing
+
+The trend script applies a right-aligned 3-week rolling mean to case and death alerts within each HZ.
+This smooths short-term noise while retaining the current week in the rolling window.
+
+The smoothed counts are stored as `case_alerts_3w` and `death_alerts_3w`.
+
+---
+
+## Trend testing
+
+The script applies the Mann-Kendall test to `total_alerts` within each HZ.
+The test is run only when there are at least 4 weeks with AAI data in the zone.
+
+For each HZ, the script extracts:
+
+- Kendall’s tau
+- the p-value
+- a simple trend label:
+  - Increasing: `p < 0.05` and `tau > 0`
+  - Decreasing: `p < 0.05` and `tau < 0`
+  - Stable: all other non-missing cases
+  - Unknown: failed test or missing result
+
+The same procedure is repeated for the most recent 6 weeks to capture short-term movement.
+
+---
+
+## Recent adequacy ranking
+
+For the most recent 3 weeks, the script computes mean AAI by HZ, assigns an adequacy category, joins the long-run trend labels, and sorts the result by mean AAI.
+This produces a ranking table that highlights HZs that are currently under-alerting or over-alerting.
+
+---
+
+## Outputs
+
+The script saves:
+
+- `02_trends_smooth.rds`
+- `02_trends_smooth_adeq.rds`
+- `02_recent_adequacy.xlsx`
+- `trends_smooth.xlsx`
+- `trends_smooth_adeq.xlsx`
+- `02_alert_trends.pdf`
+
+The PDF includes an overall alert trend plot and a faceted view for the highest-priority under-alerting HZs.
+
+---
+
+## Glossary
+
+The column-level glossary for `02_trends_smooth_adeq.rds` is included below.
+
+```{r include_trends_glossary, echo=FALSE, results='asis'}
+cat(readLines("../glossaries/02_trends_glossary_en.md"), sep = "\n")
+```
+
+---
+
+## Caveats and limitations
+
+- The AAI depends on the quality of the threshold synthesis from script 01.
+- Right-aligned rolling means introduce lag.
+- Mann-Kendall detects monotonic trends, not abrupt changes or seasonality.
+- The current adequacy thresholds are operational cut points, not formal clinical standards.
+- HZs with sparse data can have unstable trend labels.

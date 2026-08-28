@@ -1,0 +1,391 @@
+---
+title: "Analyse des tendances et de la performance des alertes"
+subtitle: "Réponse EVD17, zones de santé suivies"
+date: today
+date-format: "DD/MM/YYYY"
+lang: fr
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    theme: flatly
+    fig-responsive: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.retina = 3
+)
+
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(gt)
+  library(patchwork)
+  library(readxl)
+  library(scales)
+})
+
+source(here::here("R/alert_plots.R"), encoding = "UTF-8")
+
+zoning_column <- "zone_sante_notification"
+ensemble_label <- "Ensemble de la zone affectée"
+n_priority_zones <- 6L
+
+format_date_fr <- function(x) {
+  format(as.Date(x), format = "%d/%m/%Y")
+}
+
+trouver_derniere_execution <- function() {
+  fichiers <- list.files(
+    path = here::here("output"),
+    pattern = "^01_intermediate_parameters\\.rds$",
+    recursive = TRUE,
+    full.names = TRUE
+  )
+
+  executions <- tibble::tibble(chemin = fichiers) |>
+    dplyr::mutate(dossier = dirname(chemin)) |>
+    dplyr::filter(
+      file.exists(file.path(dossier, "02_trends_smooth_adeq.rds")),
+      file.exists(file.path(dossier, "02_recent_adequacy.xlsx"))
+    ) |>
+    dplyr::arrange(dplyr::desc(dossier))
+
+  if (nrow(executions) == 0L) {
+    rlang::abort(
+      "Aucune exécution complète trouvée sous output/. lancer R/01_alert_thresholds.R puis R/02_alert_trends.R."
+    )
+  }
+
+  dplyr::slice_head(executions, n = 1L)
+}
+
+derniere_execution <- trouver_derniere_execution()
+parametres <- readRDS(derniere_execution$chemin)
+tendances <- readRDS(
+  file.path(derniere_execution$dossier, "02_trends_smooth_adeq.rds")
+)
+
+colonnes_requises <- c(
+  zoning_column,
+  "threshold_time_key",
+  "case_alerts",
+  "death_alerts",
+  "aai",
+  "adequacy_category"
+)
+colonnes_absentes <- setdiff(colonnes_requises, names(tendances))
+if (length(colonnes_absentes) > 0L) {
+  rlang::abort(c(
+    "La table de tendances ne contient pas les colonnes requises.",
+    x = paste(colonnes_absentes, collapse = ", ")
+  ))
+}
+
+date_analyse <- max(tendances$threshold_time_key, na.rm = TRUE)
+date_fin_analyse <- max(tendances$threshold_valid_to, na.rm = TRUE)
+date_source <- attr(tendances, "evd_max_date")
+if (is.null(date_source) || is.na(date_source)) {
+  date_source <- date_analyse
+}
+date_source <- as.Date(date_source)
+
+zones_prioritaires <- tendances |>
+  dplyr::filter(.data[[zoning_column]] != ensemble_label) |>
+  dplyr::summarise(
+    total_alertes_cas = sum(case_alerts, na.rm = TRUE),
+    total_alertes_deces = sum(death_alerts, na.rm = TRUE),
+    .by = dplyr::all_of(zoning_column)
+  ) |>
+  dplyr::arrange(
+    dplyr::desc(total_alertes_cas),
+    dplyr::desc(total_alertes_deces)
+  ) |>
+  dplyr::slice_head(n = n_priority_zones) |>
+  dplyr::pull(dplyr::all_of(zoning_column))
+
+parametres_cas <- parametres$case_derived_params |>
+  dplyr::filter(threshold_time_key == .env$date_analyse) |>
+  dplyr::filter(.data[[zoning_column]] %in% .env$zones_prioritaires)
+
+cas_observes <- parametres$recent_cases |>
+  dplyr::filter(threshold_time_key == .env$date_analyse) |>
+  dplyr::select(
+    dplyr::all_of(zoning_column),
+    threshold_time_key,
+    cas_confirmes_observes = n_recent_confirmed
+  )
+
+tableau_dernier_point <- parametres_cas |>
+  dplyr::left_join(
+    cas_observes,
+    by = dplyr::join_by(
+      zone_sante_notification,
+      threshold_time_key
+    ),
+    relationship = "one-to-one"
+  ) |>
+  dplyr::select(
+    zone_de_sante = dplyr::all_of(zoning_column),
+    cas_confirmes_observes,
+    cas_reels_estimes = estimated_true_cases_recent,
+    beta_cas = beta_c,
+    beta_deces = beta_d
+  ) |>
+  dplyr::mutate(
+    zone_de_sante = factor(
+      zone_de_sante,
+      levels = c(zones_prioritaires, ensemble_label)
+    )
+  ) |>
+  dplyr::arrange(zone_de_sante) |>
+  dplyr::mutate(zone_de_sante = as.character(zone_de_sante))
+
+adequation_recente <- readxl::read_xlsx(
+  file.path(derniere_execution$dossier, "02_recent_adequacy.xlsx")
+)
+
+traduire_categorie <- function(x) {
+  dplyr::case_match(
+    x,
+    "Under-alerting" ~ "Sous-alerte",
+    "Adequate" ~ "Adéquat",
+    "Over-alerting" ~ "Sur-alerte",
+    .default = dplyr::coalesce(x, "Non disponible")
+  )
+}
+
+traduire_tendance <- function(x) {
+  dplyr::case_match(
+    x,
+    "Increasing" ~ "À la hausse",
+    "Decreasing" ~ "À la baisse",
+    "Stable" ~ "Stable",
+    "Unknown" ~ "Inconnue",
+    .default = dplyr::coalesce(x, "Non disponible")
+  )
+}
+
+tableau_performance <- adequation_recente |>
+  dplyr::filter(.data[[zoning_column]] %in% .env$zones_prioritaires) |>
+  dplyr::transmute(
+    zone_de_sante = .data[[zoning_column]],
+    aai_moyen = mean_aai,
+    categorie = traduire_categorie(adequacy_category),
+    tendance = traduire_tendance(trend_direction)
+  ) |>
+  dplyr::mutate(
+    zone_de_sante = factor(
+      zone_de_sante,
+      levels = c(zones_prioritaires, ensemble_label)
+    ),
+    ecart_performance = abs(aai_moyen - 1)
+  ) |>
+  dplyr::arrange(dplyr::desc(aai_moyen)) |>
+  dplyr::mutate(zone_de_sante = as.character(zone_de_sante))
+
+meilleure_zs <- tableau_performance |>
+  dplyr::slice_min(ecart_performance, n = 1L, with_ties = FALSE)
+
+pire_zs <- tableau_performance |>
+  dplyr::slice_max(ecart_performance, n = 1L, with_ties = FALSE)
+
+toutes_sous_alerte <- all(tableau_performance$categorie == "Sous-alerte")
+```
+
+# Objectif principal
+
+Ce rapport évalue si les zones de santé (ZS) suivies génèrent un volume d'alertes validées compatible avec la charge épidémiologique estimée. Il décrit également l'évolution temporelle des alertes de cas et identifie les ZS dont la performance actuelle justifie un appui immédiat.
+
+La question opérationnelle est la suivante :
+
+> Les zones de santé produisent-elles le nombre attendu d'alertes validées compte tenu des cas réels estimés, des décès attendus et des seuils opérationnels ?
+
+# Méthodes
+
+Les alertes validées sont comptées par ZS et par fenêtre de sept jours sur la grille temporelle issue de l'analyse des seuils. Les cas réels récents sont estimés en divisant les cas confirmés projetés par le taux de détection combiné. Les décès attendus sont obtenus en appliquant la létalité utilisée par le modèle aux cas réels estimés.
+
+Les multiplicateurs sont estimés avec un modèle de Poisson comportant un décalage logarithmique d'exposition :
+
+$$
+\log E(A_{z,t}) = \log(E_{z,t}) + \beta_0,
+\qquad \beta = \exp(\beta_0)
+$$
+
+où \(A_{z,t}\) est le nombre d'alertes validées dans la ZS \(z\) à la fenêtre \(t\). Le tableau présente deux multiplicateurs :
+
+- \(\beta_c\) : nombre attendu d'alertes de cas validées par cas réel estimé ;
+- \(\beta_d\) : nombre attendu d'alertes de décès validées par décès attendu. Ce dénominateur est obtenu à partir des cas réels estimés et de la létalité.
+
+La performance courante est ensuite mesurée par le ratio entre alertes observées et seuil attendu, puis résumée par l'Indice d'Adéquation des Alertes (AAI), moyenne des adéquations pour les cas et les décès. Conformément aux seuils opérationnels utilisés dans le pipeline, une ZS est classée en sous-alerte lorsque l'AAI est inférieur à 0,75, adéquate entre 0,75 et 2,0, et en sur-alerte au-delà de 2,0.
+
+# Synthèse au dernier point temporel
+
+Le tableau ci-dessous présente les métriques demandées pour la dernière fenêtre d'analyse, du `r format_date_fr(date_analyse)` au `r format_date_fr(date_fin_analyse)`. Les `r length(zones_prioritaires)` ZS affichées sont celles retenues pour les figures parce qu'elles concentrent le plus grand volume d'alertes de cas sur la période analysée.
+
+```{r}
+#| label: tbl-dernier-point
+#| tbl-cap: "Cas réels estimés et multiplicateurs d'alertes par zone de santé au dernier point temporel."
+
+tableau_dernier_point |>
+  gt::gt() |>
+  gt::cols_label(
+    zone_de_sante = "Zone de santé",
+    cas_confirmes_observes = "Cas confirmés observés",
+    cas_reels_estimes = "Cas réels estimés",
+    beta_cas = md("β<sub>c</sub>"),
+    beta_deces = md("β<sub>d</sub>")
+  ) |>
+  gt::fmt_number(
+    columns = cas_confirmes_observes,
+    decimals = 0,
+    use_seps = TRUE,
+    sep_mark = " "
+  ) |>
+  gt::fmt_number(
+    columns = cas_reels_estimes,
+    decimals = 1,
+    sep_mark = " ",
+    dec_mark = ","
+  ) |>
+  gt::fmt_number(
+    columns = c(beta_cas, beta_deces),
+    decimals = 2,
+    dec_mark = ","
+  ) |>
+  gt::sub_missing(missing_text = "ND") |>
+  gt::cols_align(align = "right", columns = c(
+    cas_confirmes_observes,
+    cas_reels_estimes,
+    beta_cas,
+    beta_deces
+  )) |>
+  gt::tab_footnote(
+    footnote = md(
+      "Cas confirmés observés : cas confirmés signalés dans la fenêtre, avant nowcast et ajustement pour sous-détection.
+      β<sub>c</sub> : alertes de cas validées par cas réel estimé.
+      β<sub>d</sub> : alertes de décès validées par décès attendu."
+    ),
+    locations = gt::cells_column_labels(columns = c(
+      cas_confirmes_observes,
+      beta_cas,
+      beta_deces
+    ))
+  ) |>
+  gt::tab_options(
+    table.font.size = gt::px(14),
+    column_labels.font.weight = "600"
+  )
+```
+
+Un \(\beta\) élevé ne signifie pas automatiquement qu'une ZS performe mieux actuellement. Il décrit la relation historique entre la charge estimée et le nombre d'alertes validées utilisée pour calibrer les seuils. La performance de la période la plus récente doit donc être lue avec l'AAI présenté dans la conclusion.
+
+# Tendances des alertes et adéquation
+
+La @fig-tendances-adequation présente deux lectures complémentaires. Le panneau A montre les alertes de cas observées par ZS avec la plage de seuils attendus. Le panneau B, placé en dessous, compare l'adéquation des alertes de cas et de décès à la borne opérationnelle de 75 %.
+
+```{r}
+#| label: fig-tendances-adequation
+#| fig-cap: "Alertes de cas par zone de santé et adéquation combinée des alertes de cas et de décès."
+#| fig-alt: "Figure en deux panneaux. Le panneau A contient six séries chronologiques, une par zone de santé, montrant les alertes de cas et les plages de seuils attendus. Le panneau B contient des diagrammes en barres groupées par zone de santé montrant l'adéquation des alertes de cas et de décès, avec une ligne de référence à 75 %."
+#| fig-width: 18
+#| fig-height: 16
+#| out-width: "100%"
+
+per_hz_case_static <- plot_alert_trends(
+  data = tendances,
+  hz = zones_prioritaires,
+  metric = "case",
+  colour_by_adequacy = TRUE,
+  one_per_hz = TRUE,
+  start_date = as.Date("2026-05-01"),
+  source_date = date_source
+)
+
+p_adeq_overview <- plot_adequacy_stacked(
+  data = tendances,
+  hz = zones_prioritaires,
+  start_date = as.Date("2026-05-01"),
+  source_date = date_source
+)
+
+graphiques_cas <- lapply(zones_prioritaires, \(zone) {
+  per_hz_case_static[[zone]] +
+    ggplot2::labs(
+      title = NULL,
+      subtitle = paste("Zone de santé :", zone),
+      caption = NULL
+    )
+})
+
+panneau_cas <- patchwork::wrap_plots(graphiques_cas, ncol = 3) +
+  patchwork::plot_annotation(
+    title = "A. Alertes de cas observées et seuils attendus",
+    theme = ggplot2::theme(
+      plot.title = ggplot2::element_text(face = "bold", size = 15)
+    )
+  )
+
+panneau_adequation <- p_adeq_overview +
+  ggplot2::labs(title = "B. Adéquation des alertes de cas et de décès")
+
+patchwork::wrap_plots(
+  panneau_cas,
+  panneau_adequation,
+  ncol = 1,
+  heights = c(1.05, 1)
+)
+```
+
+# Conclusion et recommandations
+
+```{r}
+#| label: tbl-performance
+#| tbl-cap: "Performance récente des zones de santé suivies, fondée sur l'AAI moyen des trois dernières fenêtres."
+
+tableau_performance |>
+  dplyr::select(-ecart_performance) |>
+  gt::gt() |>
+  gt::cols_label(
+    zone_de_sante = "Zone de santé",
+    aai_moyen = "AAI moyen",
+    categorie = "Catégorie",
+    tendance = "Tendance des alertes"
+  ) |>
+  gt::fmt_percent(
+    columns = aai_moyen,
+    decimals = 0,
+    dec_mark = ","
+  ) |>
+  gt::cols_align(align = "right", columns = aai_moyen) |>
+  gt::tab_options(
+    table.font.size = gt::px(14),
+    column_labels.font.weight = "600"
+  )
+```
+
+Parmi les ZS suivies, `r meilleure_zs$zone_de_sante` affiche l'écart le plus faible par rapport à la cible d'un AAI de 100 % (`r scales::percent(meilleure_zs$aai_moyen, accuracy = 1, decimal.mark = ",")`). À l'opposé, `r pire_zs$zone_de_sante` présente le moins bon alignement (`r scales::percent(pire_zs$aai_moyen, accuracy = 1, decimal.mark = ",")`) et constitue la priorité la plus immédiate.
+
+`r if (toutes_sous_alerte) knitr::asis_output("Aucune des ZS suivies n'atteint la borne opérationnelle de 75 % : la meilleure performance reste donc relative et n'indique pas une surveillance adéquate.") else knitr::asis_output("Les catégories de performance restent hétérogènes : les recommandations doivent donc être distinguées selon que la ZS est en sous-alerte, adéquate ou en sur-alerte.")`
+
+Recommandations opérationnelles :
+
+1. Vérifier immédiatement, en priorité dans `r pire_zs$zone_de_sante`, la génération communautaire d'alertes, la notification des décès, les délais de validation et l'exhaustivité du rapport zéro.
+2. Consolider `r meilleure_zs$zone_de_sante` sans considérer la situation comme acquise : maintenir la recherche active de cas, le suivi des décès et la revue hebdomadaire des écarts.
+3. Dans toutes les ZS en sous-alerte, documenter les barrières opérationnelles, sécuriser l'accès aux structures de soins et renforcer les relais communautaires.
+4. Interpréter les \(\beta\) comme des paramètres de calibrage et l'AAI comme l'indicateur de performance courante ; éviter de classer une ZS comme performante uniquement parce que son \(\beta\) est élevé.
+5. Mettre à jour le suivi chaque semaine et réévaluer les priorités si un changement brutal des alertes, des cas confirmés ou des décès est observé.
+
+# Limites
+
+Ces résultats reposent sur des cas réels estimés et des décès attendus, et non sur des observations directes exhaustives. Les ZS avec peu d'événements, des délais de notification ou des données incomplètes peuvent avoir des multiplicateurs instables. L'AAI dépend aussi de la calibration des seuils ; il doit donc être interprété avec les comptages observés, les tendances et la connaissance opérationnelle du terrain.
+
+Le rapport utilise la sortie complète la plus récente (`r basename(derniere_execution$dossier)`), fondée sur des données Tracker au `r format_date_fr(date_source)` ; la dernière fenêtre d'analyse court du `r format_date_fr(date_analyse)` au `r format_date_fr(date_fin_analyse)`.

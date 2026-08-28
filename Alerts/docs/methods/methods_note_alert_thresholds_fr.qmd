@@ -1,0 +1,309 @@
+---
+title: "Note méthodologique — Seuils d'alerte hebdomadaires, réponse EVD17"
+subtitle: "Triangulation de trois approches pour détecter des volumes d'alertes inhabituels par zone de santé"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    number-sections: true
+    theme: flatly
+  pdf:
+    toc: true
+    number-sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+```
+
+## Objectif
+
+Cette note documente la méthodologie utilisée pour dériver les **seuils d'alerte hebdomadaires par zone de santé (ZS)** pour la réponse EVD17 dans l'est de la RDC.
+
+La question opérationnelle à laquelle les seuils répondent est :
+
+> *Compte tenu de la taille de la population et de l'épidémiologie récente d'une zone de santé, combien d'alertes (pour les cas vivants et pour les décès) en une seule semaine seraient suffisamment inhabituelles pour justifier une investigation ?*
+
+Aucune approche statistique unique n'est robuste dans un système de surveillance affecté par les conflits et à ressources limitées — les dénominateurs de population sont incertains, l'exhaustivité des notifications varie, et le tableau épidémique évolue chaque semaine. Nous triangulons donc **trois approches indépendantes** et les moyennons en une table de synthèse unique. Chaque approche est documentée ci-dessous avec ses hypothèses, ses données d'entrée et ses limites.
+
+---
+
+## Données d'entrée
+
+| Donnée | Source | Rôle |
+|---|---|---|
+| Liste linéaire EVD nettoyée | `DataCleaning/data/Output/` (dernier fichier) | Comptages de cas/décès, CFR, taux de détection, Rt |
+| Alertes historiques EVD10 (Beni) | `Alert_Beni.rds` | Taux d'alertes de référence pendant les semaines sans épidémie |
+| Population par ZS | DHIS2 base 2024, projetée à l'année en cours à 1,29 % de croissance annuelle | Dénominateur pour les taux par habitant |
+| Taux de mortalité brut (CMR) | 8,3 pour 1 000 par an (valeur de repli provinciale) | Décès communautaires attendus sous l'hypothèse nulle d'absence d'épidémie |
+
+Toutes les données sont chargées et validées dans le script `R/01_alert_thresholds.R`. Les chiffres de population sont projetés à partir de la base DHIS2 2024 jusqu'à l'année en cours en utilisant une croissance annuelle composée de 1,29 %, le taux national de la RDC.
+
+---
+
+## Les trois approches
+
+### Approche A — Seuil de mortalité de base
+
+**Justification.** En l'absence d'épidémie, les décès dans la communauté surviennent à un taux prévisible. Un excès soudain d'*alertes pour décès* par rapport à cette base constitue un signal d'alerte précoce.
+
+**Méthode.** Pour chaque ZS :
+
+1. Calculer les décès hebdomadaires attendus :
+
+$$
+E[D_w] \;=\; \frac{\text{Population} \times \text{CMR}}{1 000 \times 52,14}
+$$
+
+2. Sous l'hypothèse nulle de mortalité de base stable, les comptages hebdomadaires de décès suivent approximativement une distribution de Poisson de moyenne $\lambda = E[D_w]$. Les seuils sont des quantiles de Poisson :
+
+$$
+T^{\text{lower}}_A = Q_{\text{Poisson}}(0,25,\;\lambda), \qquad
+T^{\text{upper}}_A = Q_{\text{Poisson}}(0,95,\;\lambda)
+$$
+
+**Interprétation.** Le seuil inférieur (25e percentile) marque le niveau en dessous duquel la mortalité est inhabituellement basse et au-dessus duquel elle est élevée par rapport à l'attente. Le seuil supérieur (95e percentile) marque le niveau au-dessus duquel les décès sont statistiquement inhabituels — dépasser cette limite justifie une investigation immédiate comme signal épidémique potentiel.
+
+**Portée.** L'approche A produit des seuils *uniquement pour les décès* ; elle n'a pas d'équivalent pour les cas.
+
+---
+
+### Approche B — Référence historique EVD10 (Beni)
+
+**Justification.** Même les systèmes de surveillance bien fonctionnels génèrent un niveau de base d'alertes pendant les périodes sans épidémie. En caractérisant ce niveau de base à partir de la réponse EVD10 à Beni, nous pouvons établir des seuils qui tiennent compte du volume d'alertes attendu d'un système fonctionnel.
+
+**Méthode.**
+
+1. Restreindre le jeu de données EVD10 de Beni aux **alertes validées** et calculer, par ZS et semaine épidémiologique, le taux de positivité laboratoire.
+2. Définir les *semaines optimales* par ZS comme celles avec une **positivité < 10 %** — périodes où l'investigation des alertes était active mais le signal épidémique était faible.
+3. Pendant les semaines optimales, calculer le taux hebdomadaire d'alertes de cas et de décès pour 100 000 habitants pour chaque ZS.
+4. Identifier les **ZS les plus performantes** : celles avec au moins 50 alertes validées au total, et avec des taux d'alertes de cas dans le **quartile supérieur** pendant les semaines optimales. Ce sont les ZS qui combinent une activité de surveillance soutenue et un débit d'investigation élevé.
+5. La **médiane** et le **75e percentile** des taux des ZS les plus performantes définissent respectivement les taux de référence inférieur et supérieur.
+6. Mettre ces taux à l'échelle de la population de chaque ZS cible :
+
+$$
+T^{\text{lower}}_B(\text{ZS}) \;=\; r^{\text{lower}}_{\text{ref}} \times \frac{\text{Population}_{\text{ZS}}}{10^5}
+$$
+
+**Interprétation.** Le seuil B représente le volume d'alertes que même les ZS de surveillance les plus fortes ont produit pendant les périodes épidémiologiques calmes. Les comptages d'alertes actuels au-dessus de cette plage dépassent ce qu'un système fonctionnant de manière optimale a historiquement produit — suggérant un signal réel plutôt que du bruit de surveillance.
+
+---
+
+### Approche C — Attentes dérivées des cas (basées sur la liste linéaire)
+
+**Justification.** C'est l'approche fondée sur l'épidémiologie. Elle pose la question : *compte tenu de ce que nous savons sur la transmission et la gravité dans chaque ZS actuellement, combien d'alertes devrions-nous attendre — et quel écart par rapport à l'attente est statistiquement significatif ?*
+
+L'approche C enchaîne cinq étapes, documentées ci-dessous :
+
+1. **Paramètres épidémiologiques** estimés par ZS (CFR, CFR rétro-calculé, taux de croissance, $R_t$, SAR).
+2. **Taux de détection par liens épidémiologiques** — proportion de cas confirmés trouvés par recherche active des contacts.
+3. **Taux de détection par rétro-calcul** — proportion de cas réels effectivement détectés, inférée à partir des décès observés.
+4. **Combinaison** des deux estimations de détection en un taux unique utilisé pour rétro-calculer le nombre de cas réels.
+5. **Modèle de multiplicateur à décalage de Poisson** traduisant les cas réels estimés en comptages d'alertes validées attendues, produisant $\beta_c$ et $\beta_d$.
+
+**Interprétation.** L'approche C est la seule qui s'adapte à l'*état actuel* de l'épidémie dans chaque ZS. Le multiplicateur $\beta$ capture si les alertes fonctionnent au-dessus ($\beta > 1$) ou en dessous ($\beta < 1$) du nombre prédit par la charge de cas estimée. La bande de confiance quantifie l'incertitude dans cette relation.
+
+---
+
+#### C.1 Paramètres épidémiologiques
+
+Pour chaque ZS, le script estime :
+
+| Paramètre | Fonction | Définition |
+|---|---|---|
+| CFR (`cfr_used`) | `compute_cfr_by_hz()` | Décès parmi les cas confirmés / cas confirmés ; CFR groupé utilisé lorsque la ZS a < 5 cas confirmés |
+| CFR rétro-calculé | `compute_cfr_backcalc_by_hz()` | Voir C.3 |
+| Taux de croissance $r$ | `compute_growth_rate_by_hz()` | Taux de croissance exponentiel via `incidence::fit()` dans des fenêtres glissantes de 7 jours ; groupé inter-ZS en repli |
+| $R_t$ | `compute_rt_hz()` | `EpiEstim` SI paramétrique (moyenne 12, écart-type 5 jours) sur les 21 derniers jours de dates d'apparition ; $R_t$ groupé en repli pour les ZS clairsemées |
+| Contacts par cas ($k$) | `compute_contacts_per_case_by_hz()` | Contacts suivis ÷ cas confirmés dans la fenêtre d'analyse ; spécifique à la ZS lorsque la ZS a ≥ 5 cas confirmés et un ratio positif, sinon le ratio groupé global |
+| SAR | Dérivé | $R_t / k$ en utilisant le nombre estimé de contacts par cas ; forcé à 0,1 lorsque manquant |
+| Décès attendus | Dérivé | $\hat{C}_{\text{réel}} \times \text{CFR}$ |
+| Cas secondaires attendus | Dérivé | $\hat{C}_{\text{réel}} \times k \times \text{SAR}$ (équivaut à $\hat{C}_{\text{réel}} \times R_t$ puisque SAR $= R_t / k$) |
+
+#### C.2 Méthode de détection par liens épidémiologiques
+
+La méthode des liens épidémiologiques estime le taux de détection à partir de la proportion de cas confirmés trouvés par recherche active des contacts (marqués par un lien épidémiologique), parmi les cas confirmés ayant des données de lien valides.
+
+$$
+\rho_{\text{epilink}} = \frac{n_{\text{epilink}}}{n_{\text{conf, epilink valide}}}
+$$
+
+où $n_{\text{epilink}}$ est le nombre de cas confirmés/positifs avec `alert_lien_epidemiologic == "Oui"`, et $n_{\text{conf, epilink valide}}$ est le nombre de cas confirmés avec une donnée de lien épidémiologique non manquante.
+
+Lorsque $n_{\text{conf, epilink valide}} < 5$, le taux spécifique à la ZS est remplacé par le taux de détection groupé (toutes ZS) :
+
+$$
+\rho_{\text{epilink, groupé}} = \frac{\sum_{\text{toutes ZS}} n_{\text{epilink}}}{\sum_{\text{toutes ZS}} n_{\text{conf, epilink valide}}}
+$$
+
+Le taux de sous-détection est $1 - \rho_{\text{epilink}}$.
+
+**Justification.** Une proportion élevée de cas avec lien épidémiologique suggère que la recherche active fonctionne bien ; une faible proportion suggère que de nombreux cas arrivent par des voies passives et peuvent refléter une sous-détection.
+
+#### C.3 Méthode de détection par rétro-calcul du CFR
+
+La méthode de rétro-calcul estime le taux de détection à partir des décès observés, en deux étapes.
+
+**Étape 1 — CFR rétro-calculé.** Le CFR rétro-calculé élargit le dénominateur au-delà des cas confirmés en incluant les décès éligibles jamais confirmés par laboratoire :
+
+$$
+\text{CFR}_{\text{rétro}} = \frac{D_{\text{éligible}}}{N_{\text{confirmé}} + D_{\text{éligible, non confirmé}}}
+$$
+
+où $D_{\text{éligible}}$ est le nombre de *décès éligibles* — décès observés (statut d'alerte ou statut final = "Décédé") avec un résultat de laboratoire positif ou indisponible — et $D_{\text{éligible, non confirmé}}$ est le sous-ensemble de ces décès qui ne sont pas également des cas confirmés. Des intervalles de confiance binomiaux exacts à 95 % sont calculés. Les ZS avec un dénominateur < 5 se rabattent sur le CFR groupé.
+
+**Étape 2 — Taux de détection à partir des décès.** Le taux de détection est le rapport entre les cas confirmés détectés et le nombre estimé de cas réels, où les cas réels sont rétro-calculés à partir des décès observés :
+
+$$
+\rho_{\text{rétro}} = \frac{N_{\text{détecté}}}{\hat{C}_{\text{réel}}}
+$$
+
+avec l'estimation des cas réels :
+
+$$
+\hat{C}_{\text{réel}} = \frac{D_{\text{observé}} \times (1 + r/\beta)^{\alpha}}{\text{CFR}_{\text{rétro}}}
+$$
+
+**Ajustement de la distribution de délai.** Le terme $(1 + r/\beta)^{\alpha}$ corrige le biais de censure à droite qui survient parce que les décès suivent les apparitions de cas pendant une épidémie croissante ou décroissante. Le délai d'apparition à décès est modélisé par une distribution Gamma avec :
+
+$$
+\alpha = \left(\frac{\mu}{\sigma}\right)^2, \qquad \beta = \frac{\mu}{\sigma^2}
+$$
+
+où $\mu = 11{,}37$ jours et $\sigma = 5{,}41$ jours (valeurs de la littérature pour le délai d'apparition à décès de la MVE). Le taux de croissance exponentiel $r$ est estimé par ZS et par fenêtre glissante. Lorsque $r > 0$ (épidémie croissante), le facteur d'ajustement dépasse 1, gonflant le nombre estimé de cas réels pour tenir compte des décès non encore observés ; lorsque $r < 0$, il est inférieur à 1.
+
+Les intervalles de confiance sur $\rho_{\text{rétro}}$ combinent les bornes de confiance du CFR et celles du taux de croissance pour produire `detection_rate_low` (pessimiste) et `detection_rate_high` (optimiste).
+
+#### C.4 Combinaison des estimations de détection
+
+Les deux estimations de détection sont combinées en un taux unique par ZS :
+
+1. **Filtre de validité.** Seuls les taux de détection satisfaisant $0 < \rho \leq 1$ sont conservés. Les taux hors de cette plage (ex. estimations de rétro-calcul > 1 issues de données clairsemées) sont mis à manquant.
+
+2. **Moyennage.** Le taux de détection combiné est la moyenne arithmétique des sources valides :
+
+$$
+\rho_{\text{combiné}} = \frac{1}{S} \sum_{s \in \{\text{rétro},\, \text{epilink}\}} \rho_s
+$$
+
+où $S$ est le nombre de sources valides (0, 1 ou 2). Si aucune source n'est valide, le taux combiné est manquant et les estimations de cas réels en aval sont manquantes.
+
+3. **Estimation des cas réels.** Cas réels estimés dans la fenêtre récente :
+
+$$
+\hat{C}_{\text{réel, récent}} = \frac{C_{\text{détecté, récent}}}{\rho_{\text{combiné}}}
+$$
+
+où $C_{\text{détecté, récent}}$ est le nombre de cas confirmés/positifs dans la fenêtre de 7 jours la plus récente. Pour la fenêtre la plus récente, ce comptage peut être remplacé par une projection du modèle de croissance (`predicted_last_count`) pour atténuer la censure à droite due aux délais de notification.
+
+4. **Traçage des sources.** La sortie enregistre quelles méthodes ont contribué (`detection_rate_source_names` : "backcalc", "epilink", ou "backcalc,epilink") et le statut de combinaison (`detection_rate_combined_status` : "averaged", "single_source", ou "no_valid_detection_rate").
+
+#### C.5 Architecture des fenêtres glissantes
+
+L'approche C produit des seuils variants dans le temps à l'aide de fenêtres non chevauchantes :
+
+- **Génération des fenêtres.** Des fenêtres non chevauchantes de 7 jours sont générées en remontant à partir de la date d'apparition de cas confirmé la plus récente. Chaque fenêtre est identifiée par un `threshold_time_key` (sa date de début) et porte une paire `recent_case_window_start` / `recent_case_window_end` (période d'exposition) et une paire `threshold_valid_from` / `threshold_valid_to` (période d'application du seuil).
+- **Axe temporel unique (harmonisé, 2026-08-16).** Cette grille d'analyse est le *seul* axe temporel hebdomadaire utilisé dans le pipeline d'alertes. Les comptages d'alertes, l'exposition des cas confirmés, les deltas de nowcast et le modèle de multiplicateur de Poisson sont tous regroupés sur ces fenêtres de la grille (`bin_dates_by_grid()` dans `alert_helpers/window_utils.R`) ; le regroupement en semaines civiles (lundi) n'est pas utilisé pour les indicateurs en direct. La grille est ancrée sur les données (les fenêtres se terminent à la date de cas confirmé la plus récente), donc le jour de début suit les données — dimanche dans l'instantané actuel — plutôt qu'une convention de calendrier fixe.
+- **Garde contre le délai de notification.** La dernière fenêtre (`n_copy_last = 1`) copie son estimation de taux de croissance — et par conséquent ses multiplicateurs — à partir de la fenêtre précédente, car les jours les plus récents sont sujets à la censure à droite due aux délais de notification.
+- **Repli groupé.** Un taux de croissance groupé (toutes ZS confondues) est calculé pour chaque date de fenêtre et utilisé lorsque l'estimation spécifique à la ZS est indisponible (cas trop peu nombreux, échec d'ajustement).
+- **Bornes d'analyse.** Les fenêtres sont bornées par `analysis_start_date` (max de la date de cas confirmé la plus ancienne, 2026-04-01) et `analysis_end_date` (min de la date de cas confirmé la plus récente, aujourd'hui).
+
+#### C.6 Modèle de multiplicateur à décalage de Poisson
+
+Pour chaque ZS et chaque fenêtre de seuil, un GLM de Poisson avec lien logarithmique est ajusté pour estimer les multiplicateurs d'alerte $\beta_c$ (alertes de cas) et $\beta_d$ (alertes de décès) :
+
+$$
+\log E[A_w] = \log(E_w) + \beta_0
+$$
+
+où $A_w$ est le nombre d'alertes validées dans la fenêtre de la grille $w$ (alertes vivantes pour $\beta_c$, alertes décès pour $\beta_d$), et $E_w$ est l'exposition attendue. Le multiplicateur est $\beta = \exp(\beta_0)$.
+
+**Regroupement en fenêtres.** Les alertes validées, l'exposition des cas confirmés et les deltas de nowcast sont regroupés sur les mêmes fenêtres de la grille d'analyse que celles utilisées pour les seuils (voir C.5) — et non sur les semaines civiles (lundi) — de sorte que chaque fenêtre de la grille contribue exactement une observation au modèle et que le taux estimé s'applique aux mêmes périodes de 7 jours que les seuils qu'il alimente. Pour une fenêtre de seuil donnée, le modèle est ajusté sur la série cumulative de la grille observée jusqu'à la fin de cette fenêtre (une observation par fenêtre de la grille, sans anticipation).
+
+**Allocation de l'exposition.** Le total estimé de cas réels de la ZS est réparti entre les fenêtres de la grille proportionnellement aux cas confirmés détectés :
+
+$$
+E_w^{\text{cas}} = \hat{C}_{\text{réel, récent}} \times \frac{c_w}{\sum_{w} c_w}, \qquad E_w^{\text{décès}} = \hat{C}_{\text{réel, récent}} \times \text{CFR} \times \frac{c_w}{\sum_{w} c_w}
+$$
+
+où $c_w$ est le nombre de cas confirmés détectés dans la fenêtre de la grille $w$.
+
+**Gestion de la surdispersion.** L'estimation de dispersion est $\phi = \text{déviance} / \text{df}_{\text{résiduel}}$ issue de l'ajustement de Poisson. Lorsque $\phi$ dépasse le seuil de surdispersion (par défaut $\phi > 1.5$), le modèle est réajusté en GLM binomial négatif avec le même lien logarithmique et le même décalage, et $\beta$ avec son intervalle de confiance sont issus de cet ajustement (le paramètre de dispersion supplémentaire $\theta$ est estimé à partir des données). Pour $\phi \le 1.5$ — ou si l'ajustement binomial négatif ne converge pas — les erreurs standard sont mises à l'échelle par $\sqrt{\max(1, \phi)}$, produisant des intervalles de type quasi-Poisson.
+
+**Repli.** Si moins de `min_model_weeks = 2` semaines épidémiologiques ont une exposition positive, le GLM n'est pas ajusté. Un simple ratio de taux $\beta = \sum A_w / \sum E_w$ est utilisé à la place, avec intervalles de Poisson exacts. Si l'exposition totale est nulle ou non finie, le multiplicateur est manquant et un multiplicateur groupé (calculé sur toutes les ZS à partir des alertes validées sur les cas réels estimés) est substitué au moment de la synthèse.
+
+**Interprétation.** $\beta > 1$ signifie que le système d'alerte génère plus d'alertes validées que prédit par la charge estimée de cas réels (incluant possiblement des alertes non-MVE) ; $\beta < 1$ signifie une sous-ascertainment relative aux cas réels estimés.
+
+**Construction des seuils.** Les seuils dérivés des cas sont purement dictés par les données de charge de cas estimée et les multiplicateurs de Poisson (sans ajouter de plancher historique de base de l'approche B, qui est intégré séparément lors de la phase de synthèse) :
+
+$$
+T_C^{\text{point}} = \beta \times E, \qquad T_C^{\text{inférieur}} = \beta_{\text{low}} \times E, \qquad T_C^{\text{supérieur}} = \beta_{\text{high}} \times E
+$$
+
+où $E$ est le comptage attendu (`estimated_true_cases_recent` pour les cas, `expected_deaths` pour les décès), et $\beta, \beta_{\text{low}}, \beta_{\text{high}}$ sont l'estimation centrale et les bornes d'incertitude issues du modèle à décalage (Poisson, ou binomial négatif en cas de surdispersion).
+
+---
+
+## Synthèse
+
+Les trois approches sont combinées en un seuil unique par ZS et fenêtre temporelle par simple moyenne :
+
+| Seuil | Formule |
+|---|---|
+| `Alert_case_lower` | $(T^{\text{lower}}_B + T^{\text{lower}}_C) / 2$ |
+| `Alert_case_upper` | $(T^{\text{upper}}_B + T^{\text{upper}}_C) / 2$ |
+| `Alert_death_lower` | $(T^{\text{lower}}_A + T^{\text{lower}}_B + T^{\text{lower}}_C) / 3$ |
+| `Alert_death_upper` | $(T^{\text{upper}}_A + T^{\text{upper}}_B + T^{\text{upper}}_C) / 3$ |
+| Seuil d'alerte de cas (ponctuel) | `(Alert_case_lower + Alert_case_upper) / 2`, arrondi à l'entier |
+| Seuil d'alerte de décès (ponctuel) | `(Alert_death_lower + Alert_death_upper) / 2`, arrondi à l'entier |
+
+**Pourquoi des dénominateurs différents ?** L'approche A n'a pas d'équivalent pour les cas — elle n'informe que les décès (c'est un modèle nul de mortalité communautaire). Les seuils de décès moyennent donc trois entrées ; les seuils de cas en moyennent deux.
+
+**Règles de groupement.** Lorsque les estimations spécifiques à la ZS ne sont pas disponibles (données clairsemées, paramètres manquants), la synthèse substitue des valeurs groupées inter-ZS : CFR groupé, $\beta_c$ et $\beta_d$ groupés, et $R_t$ groupé.
+
+---
+
+## Limites et mises en garde
+
+- **Les dénominateurs de population** sont des estimations DHIS2 2024 et peuvent ne pas refléter les déplacements causés par le conflit en Ituri et au Nord-Kivu.
+- **Le CMR de 8,3 / 1 000 / an** est une valeur de repli au niveau provincial appliquée à toutes les ZS. Les CMR spécifiques aux zones, lorsqu'ils sont disponibles, affineraient l'approche A.
+- **Les contacts par cas ($k$)** sont estimés à partir des données nettoyées de suivi des contacts et de la liste linéaire EVD sur la fenêtre d'analyse (spécifique à la ZS lorsque fiable, groupé sinon). L'estimation est sensible à l'exhaustivité de l'enregistrement des contacts ; une analyse de sensibilité est recommandée avant utilisation opérationnelle.
+- **Les multiplicateurs de décalage de Poisson** nécessitent au moins 2 semaines de données conjointes alertes-et-cas par fenêtre temporelle. Dans les fenêtres très clairsemées, ils se rabattent sur des estimations groupées, qui peuvent ne pas refléter les dynamiques spécifiques à la ZS.
+- **La méthode des liens épidémiologiques** suppose que `alert_lien_epidemiologic == "Oui"` indique une recherche active de cas ; une mauvaise classification de ce champ biaise l'estimation de détection.
+- **La méthode de rétro-calcul du CFR** suppose que la distribution de délai d'apparition à décès (Gamma, moyenne 11,37, écart-type 5,41 jours) est correcte pour ce contexte ; un délai différent modifierait le facteur d'ajustement.
+- **Les deux taux de détection sont combinés par simple moyenne non pondérée** ; aucun pondération par précision ni modèle hiérarchique n'est appliqué, de sorte qu'une estimation bruyante à source unique peut l'emporter sur une estimation appariée plus stable.
+- **Le modèle de décalage de Poisson** suppose que les cas réels hebdomadaires peuvent être approximés en répartissant le total de la fenêtre entre les semaines épidémiologiques selon les comptages de cas confirmés détectés ; si la détection a varié fortement entre les semaines au sein d'une fenêtre, cette allocation est biaisée.
+- **La référence EVD10** hérite de la qualité de surveillance du centre de traitement de Beni. Même les ZS "les plus performantes" dans ce jeu de données avaient une détection imparfaite — leurs seuils sont des planchers, pas des plafonds, pour ce qu'une bonne surveillance peut produire.
+- **Les seuils sont arrondis à l'entier** pour l'utilisation opérationnelle ; les valeurs continues sous-jacentes sont conservées dans la sortie `rds`.
+
+---
+
+## Glossaire
+
+| Symbole | Signification |
+|---|---|
+| $T^{\text{lower}}_A, T^{\text{upper}}_A$ | Seuils de décès inférieur et supérieur de l'approche A (mortalité de base) |
+| $T^{\text{lower}}_B, T^{\text{upper}}_B$ | Seuils inférieur et supérieur de l'approche B (référence historique EVD10) |
+| $T^{\text{lower}}_C, T^{\text{upper}}_C$ | Seuils inférieur et supérieur de l'approche C (dérivée des cas) |
+| $\beta_c, \beta_d$ | Multiplicateurs de décalage de Poisson pour les alertes de cas et de décès |
+| $\rho_{\text{epilink}}$ | Taux de détection estimé par la méthode des liens épidémiologiques |
+| $\rho_{\text{rétro}}$ | Taux de détection estimé par rétro-calcul du CFR |
+| $\rho_{\text{combiné}}$ | Taux de détection combiné (moyenne arithmétique des sources valides) |
+| $\hat{C}_{\text{réel}}$ | Nombre estimé de cas incidents réels |
+| $\text{CFR}_{\text{rétro}}$ | CFR rétro-calculé (décès éligibles / (confirmés + décès éligibles non confirmés)) |
+| $(1 + r/\beta)^{\alpha}$ | Facteur d'ajustement du délai d'apparition à décès (Gamma, $\mu = 11{,}37$, $\sigma = 5{,}41$) |
+| SAR | Taux d'attaque secondaire, $R_t / k$ |
+| $R_t$ | Nombre de reproduction effectif variant dans le temps |
+| $k$ | Nombre moyen de contacts par cas, estimé depuis les données de suivi des contacts (spécifique à la ZS ou groupé) |
+| CMR | Taux de mortalité brut pour 1 000 habitants par an |
+| CFR | Taux de létalité (Case Fatality Ratio) |
+| $\phi$ | Estimateur de dispersion de Poisson (déviance / df résiduel) |
+| $Q_{\text{Poisson}}(p,\lambda)$ | $p$-ième quantile de la distribution de Poisson de moyenne $\lambda$ |
+
+
+### Glossaire des colonnes (Français)
+
+```{r include_thresholds_glossary_fr, echo=FALSE, results='asis'}
+cat(readLines("../glossaries/01_thresholds_glossary_fr.md"), sep = "\n")
+```

@@ -1,0 +1,39 @@
+# Glossary — 02_trends_smooth_adeq.rds (English)
+
+- zone_sante_notification: Health zone name used for notifications.
+- Province: Province containing the health zone.
+- Population: Projected population for the health zone.
+- expected_weekly_deaths_cmr: Expected weekly community deaths from CMR.
+- death_threshold_lower_A: Baseline death threshold lower bound (Approach A).
+- death_threshold_upper_A: Baseline death threshold upper bound (Approach A).
+- alert_case_threshold_lower_B: Beni case benchmark lower bound (Approach B).
+- alert_case_threshold_upper_B: Beni case benchmark upper bound.
+- alert_death_threshold_lower_B: Beni death benchmark lower bound.
+- alert_death_threshold_upper_B: Beni death benchmark upper bound.
+- threshold_time_key: Threshold window identifier used when joining thresholds.
+- week_start: Week start date associated with the threshold window.
+- alert_case_threshold_C: Central case threshold from Approach C (case-derived).
+- alert_case_threshold_lower_C: Lower case threshold from Approach C.
+- alert_case_threshold_upper_C: Upper case threshold from Approach C.
+- alert_death_threshold_C: Central death threshold from Approach C.
+- alert_death_threshold_lower_C: Lower death threshold from Approach C.
+- alert_death_threshold_upper_C: Upper death threshold from Approach C.
+- Alert_case_threshold_lower: Synthesised case lower threshold (saved column name in trends object).
+- Alert_case_threshold_upper: Synthesised case upper threshold.
+- Alert_death_threshold_lower: Synthesised death lower threshold.
+- Alert_death_threshold_upper: Synthesised death upper threshold.
+- Alert_case_threshold: Final central case-alert threshold.
+- Alert_death_threshold: Final central death-alert threshold.
+- case_alerts: Observed number of validated case alerts in the week × HZ.
+- death_alerts: Observed number of validated death alerts in the week × HZ.
+- total_alerts: Sum of case_alerts and death_alerts for the week × HZ.
+- case_adequacy: Ratio of observed case_alerts to case threshold midpoint.
+- death_adequacy: Ratio of observed death_alerts to death threshold midpoint.
+- aai: Alert Adequacy Index — mean of case_adequacy and death_adequacy (when available).
+- adequacy_category: Category derived from aai for the current week (`Under-alerting`, `Adequate`, `Over-alerting`).
+- case_alerts_3w: 3-week right-aligned rolling mean of case_alerts.
+- death_alerts_3w: 3-week right-aligned rolling mean of death_alerts.
+- aai.3w: AAI computed using the 3-week smoothed alerts (averaging smoothed case and death adequacy).
+- adequacy_category.3w: Adequacy category computed on the `aai.3w` value.
+- total_alert_deaths: Total observed deaths per week × HZ, computed by applying `alert_is_observed_death()` (checks both `nature_alerte` and `s6_statut_final_patient` for "Décédé") to validated alerts within each threshold time window. Broader than `death_alerts` which uses only `nature_alerte` variants.
+- adequacy_cmr: CMR adequacy — ratio of `total_alert_deaths` to `expected_weekly_deaths_cmr`. A value > 1 indicates more observed deaths in that week × HZ than the CMR baseline predicts.

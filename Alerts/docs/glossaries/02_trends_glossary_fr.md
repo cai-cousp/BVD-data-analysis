@@ -1,0 +1,39 @@
+# Glossaire — 02_trends_smooth_adeq.rds (Français)
+
+- zone_sante_notification : Nom de la zone de santé utilisée pour les notifications.
+- Province : Province contenant la zone de santé.
+- Population : Population projetée pour la zone de santé.
+- expected_weekly_deaths_cmr : Décès communautaires hebdomadaires attendus à partir du CMR.
+- death_threshold_lower_A : Seuil inférieur de décès — Approche A (mortalité de base).
+- death_threshold_upper_A : Seuil supérieur de décès — Approche A.
+- alert_case_threshold_lower_B : Seuil inférieur d'alertes cas — Approche B (Beni).
+- alert_case_threshold_upper_B : Seuil supérieur d'alertes cas — Approche B.
+- alert_death_threshold_lower_B : Seuil inférieur d'alertes décès — Approche B.
+- alert_death_threshold_upper_B : Seuil supérieur d'alertes décès — Approche B.
+- threshold_time_key : Identifiant de la fenêtre de seuil utilisé lors de la jonction.
+- week_start : Date de début de la fenêtre de seuil.
+- alert_case_threshold_C : Seuil central d'alertes cas — Approche C (dérivé des cas).
+- alert_case_threshold_lower_C : Seuil inférieur d'alertes cas — Approche C.
+- alert_case_threshold_upper_C : Seuil supérieur d'alertes cas — Approche C.
+- alert_death_threshold_C : Seuil central d'alertes décès — Approche C.
+- alert_death_threshold_lower_C : Seuil inférieur d'alertes décès — Approche C.
+- alert_death_threshold_upper_C : Seuil supérieur d'alertes décès — Approche C.
+- Alert_case_threshold_lower : Seuil inférieur synthétisé pour les cas (colonne sauvegardée).
+- Alert_case_threshold_upper : Seuil supérieur synthétisé pour les cas.
+- Alert_death_threshold_lower : Seuil inférieur synthétisé pour les décès.
+- Alert_death_threshold_upper : Seuil supérieur synthétisé pour les décès.
+- Alert_case_threshold : Seuil final central pour les alertes cas.
+- Alert_death_threshold : Seuil final central pour les alertes décès.
+- case_alerts : Nombre observé d'alertes cas validées pour la semaine × ZS.
+- death_alerts : Nombre observé d'alertes décès validées pour la semaine × ZS.
+- total_alerts : Somme de case_alerts et death_alerts pour la semaine × ZS.
+- case_adequacy : Rapport entre case_alerts observées et le point médian du seuil cas.
+- death_adequacy : Rapport entre death_alerts observées et le point médian du seuil décès.
+- aai : Indice d'adéquation des alertes (AAI) — moyenne de case_adequacy et death_adequacy quand disponible.
+- adequacy_category : Catégorie d'adéquation calculée à partir de aai pour la semaine courante (`Under-alerting`, `Adequate`, `Over-alerting`).
+- case_alerts_3w : Moyenne mobile sur 3 semaines (alignée à droite) des case_alerts.
+- death_alerts_3w : Moyenne mobile sur 3 semaines (alignée à droite) des death_alerts.
+- aai.3w : AAI calculé à partir des séries lissées (moyenne des adequacy lissées).
+- adequacy_category.3w : Catégorie d'adéquation calculée à partir de `aai.3w`.
+- total_alert_deaths : Total de décès observés par semaine épidémique × ZS, calculé en appliquant `alert_is_observed_death()` (vérifie `nature_alerte` et `s6_statut_final_patient` pour "Décédé") aux alertes validées dans chaque fenêtre temporelle de seuil. Plus large que `death_alerts` qui n'utilise que les variantes de `nature_alerte`.
+- adequacy_cmr : Adéquation CMR — rapport entre `total_alert_deaths` et `expected_weekly_deaths_cmr`. Une valeur > 1 indique plus de décès observés pour cette semaine × ZS que le niveau de base CMR ne le prédit.

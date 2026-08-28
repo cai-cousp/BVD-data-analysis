@@ -1,0 +1,663 @@
+---
+title: "Gestion des échantillons et positivité des tests — Maladie à virus Bundibugyo (MVE/B), RDC"
+subtitle: "Cascade alerte-vers-laboratoire, destination des échantillons et positivité par unité géographique — positivité calculée sur le premier prélèvement par cas"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+lang: fr
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    theme: flatly
+    code-fold: true
+    self-contained: true
+    include-in-header: _dl_buttons.html
+---
+
+```{r libs, include=FALSE}
+# ============================================================================
+# Librairies — chunk JAMAIS mis en cache : garantit l'attachement des
+# packages à chaque rendu (les chunks en cache n'exécutent pas leur code
+# lors d'un cache hit, ce qui sauterait les library()).
+# ============================================================================
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(purrr)
+library(lubridate)
+library(scales)
+library(kableExtra)
+library(ggforce)
+library(here)
+```
+
+```{r setup, include=FALSE}
+# ============================================================================
+# Setup : exécute le script d'analyse lab.analysis.R en mode rapport
+# (options(lab.analysis.report_mode = TRUE)) à CHAQUE rendu. Le script est
+# relu à chaque exécution du rapport — il reste donc toujours synchronisé
+# avec la dernière version enregistrée de lab.analysis.R, même si celui-ci a
+# été modifié depuis le dernier rendu (aucun cache n'est utilisé). En mode
+# rapport, le script saute les exports de fichiers (ggsave / xlsx / rds) et
+# les vues interactives ; tous les objets restent disponibles en mémoire.
+# ============================================================================
+
+# Résoudre les chemins du projet indépendamment du répertoire de rendu.
+library(here)
+source(here::here("helpers", "paths.R"))
+
+# Le script d'analyse est relu depuis le dossier du rapport lui-même (et non
+# depuis un chemin figé) : le rendu reprend ainsi toujours la version actuelle
+# de lab.analysis.R, où qu'il soit exécuté.
+options(lab.analysis.report_mode = TRUE)
+
+report_dir <- getwd()
+lab_analysis_file <- normalizePath(file.path(report_dir, "lab.analysis.R"))
+if (!file.exists(lab_analysis_file)) {
+  # Repli (exécution du chunk hors rendu, depuis un autre répertoire).
+  lab_analysis_file <- here::here("Lab.Analysis", "lab.analysis.R")
+}
+if (!file.exists(lab_analysis_file)) {
+  stop("lab.analysis.R introuvable à côté du rapport : ", lab_analysis_file)
+}
+cat("Rapport : exécution de", lab_analysis_file,
+    "(modifié le", format(file.info(lab_analysis_file)$mtime,
+                          "%d-%m-%Y %H:%M"), ")\n")
+source(lab_analysis_file)
+
+## --- Helpers de formatage d'affichage (français), propres au rapport ---
+fmt_pct <- function(x) formatC(round(x, 1), digits = 1, format = "f",
+                               decimal.mark = ",")
+fmt_num <- function(x) format(x, big.mark = " ", decimal.mark = ",",
+                              trim = TRUE)
+fmt_ci  <- function(lower, upper) {
+  paste0(fmt_pct(lower), "–", fmt_pct(upper))
+}
+fmt_pct_na <- function(x) {
+  dplyr::if_else(is.na(x), "—", fmt_pct(x))
+}
+fmt_rate_ci <- function(rate, lower, upper) {
+  dplyr::if_else(
+    is.na(rate) | is.na(lower) | is.na(upper),
+    "—",
+    paste0(fmt_pct(rate), "% (", fmt_ci(lower, upper), ")")
+  )
+}
+
+## --- Helpers de téléchargement (PNG HD / XLSX) ---
+# Génèrent des liens de téléchargement auto-contenus (data URI) : les
+# graphiques sont ré-exportés en PNG 300 dpi ; les tableaux sont capturés en
+# PNG haute définition via webshot2 (Chrome) et exportés en XLSX via
+# openxlsx. Les fichiers sont encodés en base64 et embarqués dans le HTML.
+dl_plot_html <- function(key, plot, width, height, dpi = 300) {
+  f <- tempfile(fileext = ".png")
+  ggplot2::ggsave(f, plot, width = width, height = height,
+                  dpi = dpi, units = "in", limitsize = FALSE)
+  sprintf('<p class="dl-buttons"><a class="dl-btn" href="%s" download="%s.png">Télécharger PNG HD (300 dpi)</a></p>',
+          knitr::image_uri(f), key)
+}
+dl_plot_btn <- function(key, plot, width, height, dpi = 300) {
+  knitr::asis_output(dl_plot_html(key, plot, width, height, dpi))
+}
+dl_tbl_html <- function(key, kable_obj, df, vwidth = 1600, zoom = 2) {
+  fp <- tempfile(fileext = ".png")
+  kableExtra::save_kable(kable_obj, fp, vwidth = vwidth, zoom = zoom,
+                         selector = paste0("#", key))
+  fx <- tempfile(fileext = ".xlsx")
+  openxlsx::write.xlsx(df, fx)
+  sprintf(paste0(
+    '<p class="dl-buttons">',
+    '<a class="dl-btn" href="%s" download="%s.xlsx">Télécharger XLSX</a> ',
+    '<a class="dl-btn" href="%s" download="%s.png">Télécharger PNG HD</a>',
+    '</p>'),
+    knitr::image_uri(fx), key, knitr::image_uri(fp), key)
+}
+# Version "ancrée" : la table (éventuellement dans une boîte défilante) et ses
+# boutons de téléchargement sont placés dans un conteneur .dl-wrap ; les
+# boutons y sont positionnés en absolu (coin supérieur droit) par le CSS.
+dl_tbl_wrap <- function(key, kable_obj, df, width = "100%", height = NULL,
+                        vwidth = 1600, zoom = 2) {
+  tbl_html <- if (!is.null(height)) {
+    kableExtra::scroll_box(kable_obj, width = width, height = height)
+  } else {
+    kable_obj
+  }
+  paste0(
+    '<div class="dl-wrap">',
+    tbl_html,
+    dl_tbl_html(key, kable_obj, df, vwidth = vwidth, zoom = zoom),
+    '</div>'
+  )
+}
+```
+
+# Contexte et sources de données
+
+Ce rapport présente l'analyse de la **gestion des échantillons** et de la **positivité des tests** de laboratoire dans le cadre de l'épidémie de maladie à virus Bundibugyo (MVE/B) en République démocratique du Congo. La première partie décrit la cascade allant de l'alerte validée jusqu'au résultat de laboratoire (échantillonnage, réception au laboratoire, destination des échantillons, délais de traitement par laboratoire) ; la seconde partie porte sur la positivité des tests, au niveau national, provincial et par zone de santé.
+
+## Sources de données
+
+Deux extractions nettoyées et datées sont utilisées, chargées automatiquement depuis le dossier de sortie le plus récent de `DataCleaning` :
+
+```{r data-sources-table}
+#| tbl-cap: "Sources de données utilisées pour le rapport"
+src_tbl <- tibble::tibble(
+  Source = c("Ligne list EVD nettoyée (`evd.data`)",
+             "Données laboratoire nettoyées (`evd.lab.data`)",
+             "Table long-format standardisée (`lab.long`)"),
+  Contenu = c("Cas et alertes : géographie de notification, date de début des signes, conclusion de l'alerte, variables cliniques",
+              "Un enregistrement par échantillon : dates de collecte, réception et analyse, résultat final, laboratoire de destination",
+              "Dérivée de `evd.lab.data` : une ligne par échantillon avec dates standardisées et délais (début des signes → collecte → réception → analyse)"),
+  Lignes = c(fmt_num(nrow(evd.data)),
+             fmt_num(nrow(evd.lab.data)),
+             fmt_num(nrow(lab.long)))
+)
+
+k_base <- src_tbl |>
+  kableExtra::kbl(col.names = c("Source", "Contenu", "Lignes"),
+      align = "llr", table.attr = 'id="tbl_data_sources"') |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE) |>
+  kableExtra::column_spec(1, bold = TRUE)
+
+knitr::asis_output(dl_tbl_wrap("tbl_data_sources", k_base, src_tbl))
+```
+
+- **Date de référence** : `r format(max.evd.date, "%d-%m-%Y")`.
+- **Fenêtre d'analyse** : échantillons analysés ou débuts des signes à partir du 1er mars 2026.
+- **Périmètre** : `r fmt_num(nrow(evd.data))` cas chargés, `r fmt_num(nrow(evd.lab.data))` échantillons de laboratoire couvrant `r fmt_num(length(unique(evd.lab.data$num_epid)))` cas, et `r fmt_num(nrow(lab.long))` enregistrements en format long.
+
+# Partie 1 — Gestion des échantillons
+
+## Situation nationale
+
+Au niveau national, **`r fmt_num(cov_all$n_validated)`** alertes validées ont été incluses dans l’analyse. Parmi celles-ci, **`r fmt_pct(cov_all$pct_sampled)` %** ont fait l’objet d’au moins un prélèvement (IC 95 % : `r fmt_ci(cov_all$lower_sampled, cov_all$upper_sampled)` %). Parmi les **`r fmt_num(ind_all$counts$n_collected_all)`** échantillons enregistrés, **`r fmt_pct(ind_all$counts$n_arrived_all / ind_all$counts$n_collected_all * 100)` %** sont arrivés au laboratoire selon la chaîne de preuves disponibles.
+
+En volume, cela correspond à **`r fmt_num(ind_all$counts$n_arrived_all)`** échantillons reçus au laboratoire et **`r fmt_num(ind_all$counts$n_processed_all)`** traités ou avec un résultat enregistré.
+
+::: {.callout-note}
+**Note méthodologique.** Une alerte est considérée comme *validée* si sa conclusion est « Validée » **ou** si la conclusion est manquante mais qu'au moins un prélèvement existe. Un échantillon est considéré comme *reçu au laboratoire* si une date de réception est renseignée, **ou** à défaut une date d'analyse, **ou** à défaut un résultat enregistré (positif, négatif ou invalide) : une date manquante n'efface pas la preuve que l'échantillon est arrivé au laboratoire. Les intervalles de confiance (IC 95 %) sont des intervalles binomiaux exacts (Clopper-Pearson). Les pourcentages sont exprimés sur une échelle de 0 à 100.
+:::
+
+## Cascade alerte-vers-laboratoire par province
+
+```{r cov-prop-prov-g}
+#| fig-cap: "Couverture alerte-vers-laboratoire et flux d'échantillons par province (barres d'erreur : IC 95 %)"
+#| fig-width: 8
+#| fig-height: 4.8
+cov_prov_g
+dl_plot_btn("fig_cov_prov", cov_prov_g, 8, 4.8)
+```
+
+Le tableau ci-dessous détaille les mêmes indicateurs au niveau de chaque zone de santé : alertes validées, proportion d’alertes échantillonnées et proportion d’échantillons enregistrés reçus au laboratoire.
+
+```{r cov-prop-zs-table}
+#| tbl-cap: "Cascade alerte-vers-laboratoire par zone de santé : alertes validées, % d’alertes échantillonnées et % d’échantillons enregistrés reçus au laboratoire"
+cov_prop_zs_tbl <- cov_prop_zs |>
+  # cov_prop_zs carries its own n_collected_all (coverage); drop it so the
+  # join keeps the sample-level one from ind_zs$counts (same values).
+  select(-n_collected_all) |>
+  left_join(
+    ind_zs$counts |>
+      select(province_notification, zone_sante_notification,
+             n_collected_all, n_arrived_all),
+    by = c("province_notification", "zone_sante_notification")
+  ) |>
+  mutate(
+    sampled  = paste0(fmt_pct(pct_sampled), "% (",
+                      fmt_ci(lower_sampled, upper_sampled), ")"),
+    arriving = ifelse(
+      is.na(n_collected_all) | n_collected_all == 0,
+      "—",
+      paste0(fmt_pct(n_arrived_all / n_collected_all * 100), "%")
+    )
+  ) |>
+  arrange(province_notification, desc(pct_sampled)) |>
+  select(province_notification, zone_sante_notification,
+         n_validated, sampled, arriving)
+
+zs_cov_groups <- cov_prop_zs_tbl |>
+  summarise(n = n(), .by = province_notification)
+
+k_base <- cov_prop_zs_tbl |>
+  kableExtra::kbl(
+    col.names = c("Province", "Zone de santé", "Alertes validées",
+                  "Alertes échantillonnées (%, IC 95 %)",
+                  "Échantillons reçus au labo (%)"),
+    align = "llccc",
+    table.attr = 'id="tbl_cov_prop_zs"'
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) |>
+  kableExtra::column_spec(1, bold = TRUE) |>
+  kableExtra::pack_rows(index = setNames(zs_cov_groups$n, zs_cov_groups$province_notification))
+
+knitr::asis_output(dl_tbl_wrap("tbl_cov_prop_zs", k_base, cov_prop_zs_tbl,
+                               height = "550px"))
+```
+
+*Pour les alertes échantillonnées, les cellules affichent le pourcentage avec l’IC 95 % entre parenthèses. Le pourcentage d’échantillons reçus utilise les échantillons enregistrés comme dénominateur ; « — » indique qu’aucun échantillon n’est enregistré pour la zone.*
+
+La figure ci-dessus compare, pour chaque province, la proportion d’alertes validées échantillonnées et la proportion de suspects testés. Les provinces situées sous la moyenne nationale pour l’échantillonnage ou le test méritent une attention particulière des équipes de surveillance.
+
+## Destination des échantillons
+
+```{r lab-dest-g}
+#| fig-cap: "Destination des échantillons par zone de santé de collecte (20 premières zones ; les destinations principales sont indiquées en légende)"
+#| fig-width: 12
+#| fig-height: 7.5
+lab_dest_g
+dl_plot_btn("fig_lab_dest", lab_dest_g, 12, 7.5)
+```
+
+Ce diagramme en cordes (parallel sets) relie la zone de santé de collecte au laboratoire de destination. La légende indique les cinq principales destinations avec leur part des échantillons : `r paste(top_labs$lab_label, collapse = " ; ")`. Une forte concentration des échantillons vers un nombre limité de laboratoires peut constituer un goulot d'étranglement logistique en période de pic épidémique.
+
+## Délais de traitement par laboratoire
+
+```{r prop-lab-table}
+#| tbl-cap: "Proportion des cas respectant les seuils de délai de traitement, par laboratoire de destination (IC 95 %)"
+prop_lab_tbl <- prop_lab |>
+  mutate(
+    cr_n = n_collection_to_reception_1d,
+    cr_pct = paste0(fmt_pct(pct_collection_to_reception_1d), "% (",
+                    fmt_ci(lower_collection_to_reception_1d,
+                           upper_collection_to_reception_1d), ")"),
+    ra_n = n_reception_to_analysis_1d,
+    ra_pct = paste0(fmt_pct(pct_reception_to_analysis_1d), "% (",
+                    fmt_ci(lower_reception_to_analysis_1d,
+                           upper_reception_to_analysis_1d), ")"),
+    cr2_n = n_collection_to_result_2d,
+    cr2_pct = paste0(fmt_pct(pct_collection_to_result_2d), "% (",
+                     fmt_ci(lower_collection_to_result_2d,
+                            upper_collection_to_result_2d), ")")
+  ) |>
+  select(lab_destination, cr_n, cr_pct, ra_n, ra_pct, cr2_n, cr2_pct)
+
+k_base <- prop_lab_tbl |>
+  kableExtra::kbl(
+    col.names = c("Laboratoire",
+                  "n", "Collecte → Réception ≤ 1 j",
+                  "n", "Réception → Analyse ≤ 1 j",
+                  "n", "Collecte → Résultat ≤ 2 j"),
+    align = "lrrrrrr",
+    table.attr = 'id="tbl_prop_lab"'
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) |>
+  kableExtra::column_spec(1, bold = TRUE) |>
+  kableExtra::add_header_above(c(" " = 1,
+                     "Indicateur 1 : réception rapide" = 2,
+                     "Indicateur 2 : analyse rapide" = 2,
+                     "Indicateur 3 : résultat rapide" = 2))
+
+knitr::asis_output(dl_tbl_wrap("tbl_prop_lab", k_base, prop_lab_tbl))
+```
+
+*Les cellules « % » affichent la proportion de cas dont le délai respecte le seuil, avec l'IC 95 % entre parenthèses. L'unité d'analyse est le cas (premier prélèvement collecté) ; les délais manquants ou négatifs sont exclus du numérateur et du dénominateur.*
+
+Les laboratoires affichant des proportions faibles pour la réception sous 1 jour ou l'analyse sous 1 jour constituent des cibles prioritaires pour l'appui opérationnel (chaîne de transport des échantillons, capacité d'analyse).
+
+# Partie 2 : Testing et positivité des tests
+
+::: {.callout-note}
+**Note méthodologique.** La positivité des tests est calculée sur un prélèvement avec résultat sélectionné par cas. Les volumes affichés dans les graphiques comptent un prélèvement avec preuve laboratoire par cas et par semaine ; les prélèvements répétés dans une même semaine n’augmentent pas ce volume.
+:::
+
+## Testing
+
+```{r testing-all-table}
+#| tbl-cap: "Taux de testing parmi les alertes validées : toute la période et 21 derniers jours (IC 95 %)"
+testing_all_tbl <- tibble::tibble(
+  periode = c("Toute la période", "21 derniers jours"),
+  validated = fmt_num(c(cov_all$n_validated, cov_all$n_validated_21)),
+  tested = fmt_num(c(cov_all$n_tested_all, cov_all$n_tested_21)),
+  rate = c(
+    fmt_rate_ci(
+      cov_all$testing_rate_all * 100,
+      cov_all$testing_ci_lower_all * 100,
+      cov_all$testing_ci_upper_all * 100
+    ),
+    fmt_rate_ci(
+      cov_all$testing_rate_21 * 100,
+      cov_all$testing_ci_lower_21 * 100,
+      cov_all$testing_ci_upper_21 * 100
+    )
+  )
+)
+
+k_base <- testing_all_tbl |>
+  kableExtra::kbl(
+    col.names = c("Période", "Alertes validées", "Suspects testés",
+                  "Taux de testing (%, IC 95 %)"),
+    align = "lrrc",
+    table.attr = 'id="tbl_testing_all"'
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE) |>
+  kableExtra::column_spec(1, bold = TRUE)
+
+knitr::asis_output(dl_tbl_wrap("tbl_testing_all", k_base, testing_all_tbl))
+```
+
+```{r testing-prov-table}
+#| tbl-cap: "Taux de testing par province parmi les alertes validées : toute la période et 21 derniers jours (IC 95 %)"
+testing_prov_tbl <- cov_prov |>
+  mutate(
+    testing_all = fmt_rate_ci(
+      testing_rate_all * 100,
+      testing_ci_lower_all * 100,
+      testing_ci_upper_all * 100
+    ),
+    testing_21 = fmt_rate_ci(
+      testing_rate_21 * 100,
+      testing_ci_lower_21 * 100,
+      testing_ci_upper_21 * 100
+    )
+  ) |>
+  arrange(desc(testing_rate_all)) |>
+  select(province_notification, n_validated, n_tested_all, testing_all,
+         n_validated_21, n_tested_21, testing_21)
+
+k_base <- testing_prov_tbl |>
+  kableExtra::kbl(
+    col.names = c("Province", "Alertes validées", "Suspects testés",
+                  "Taux de testing (%, IC 95 %)", "Alertes validées",
+                  "Suspects testés", "Taux de testing (%, IC 95 %)"),
+    align = "lrrrcrr",
+    table.attr = 'id="tbl_testing_prov"'
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) |>
+  kableExtra::column_spec(1, bold = TRUE) |>
+  kableExtra::add_header_above(c(" " = 1, "Toute la période" = 3,
+                                 "21 derniers jours" = 3))
+
+knitr::asis_output(dl_tbl_wrap("tbl_testing_prov", k_base, testing_prov_tbl,
+                               height = "550px"))
+```
+
+```{r testing-prov-21d-g}
+#| fig-cap: "Taux de testing par province : toute la période vs 21 derniers jours (barres d'erreur : IC 95 % ; entre parenthèses, nombre de suspects testés)"
+#| fig-width: 8
+#| fig-height: 4.8
+cov_prov_21d_g
+dl_plot_btn("fig_testing_prov_21d", cov_prov_21d_g, 8, 4.8)
+```
+
+La figure compare le taux de testing de toute la période à celui des 21 derniers jours pour chaque province. Une baisse marquée sur la fenêtre récente peut signaler une dégradation de la chaîne d'échantillonnage ou de transport ; une province sous la moyenne nationale sur les deux périodes constitue une priorité pour l'appui opérationnel.
+
+```{r testing-zs-table}
+#| tbl-cap: "Taux de testing par zone de santé parmi les alertes validées : toute la période et 21 derniers jours (IC 95 %)"
+testing_zs_tbl <- cov_zs |>
+  mutate(
+    testing_all = fmt_rate_ci(
+      testing_rate_all * 100,
+      testing_ci_lower_all * 100,
+      testing_ci_upper_all * 100
+    ),
+    testing_21 = fmt_rate_ci(
+      testing_rate_21 * 100,
+      testing_ci_lower_21 * 100,
+      testing_ci_upper_21 * 100
+    )
+  ) |>
+  arrange(province_notification, desc(testing_rate_all)) |>
+  select(province_notification, zone_sante_notification,
+         n_validated, n_tested_all, testing_all,
+         n_validated_21, n_tested_21, testing_21)
+
+zs_testing_groups <- testing_zs_tbl |>
+  summarise(n = n(), .by = province_notification)
+
+k_base <- testing_zs_tbl |>
+  kableExtra::kbl(
+    col.names = c("Province", "Zone de santé", "Alertes validées",
+                  "Suspects testés", "Taux de testing (%, IC 95 %)",
+                  "Alertes validées", "Suspects testés",
+                  "Taux de testing (%, IC 95 %)"),
+    align = "llrrrcrr",
+    table.attr = 'id="tbl_testing_zs"'
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) |>
+  kableExtra::column_spec(1, bold = TRUE) |>
+  kableExtra::add_header_above(c(" " = 2, "Toute la période" = 3,
+                                 "21 derniers jours" = 3)) |>
+  kableExtra::pack_rows(index = setNames(zs_testing_groups$n,
+                                         zs_testing_groups$province_notification))
+
+knitr::asis_output(dl_tbl_wrap("tbl_testing_zs", k_base, testing_zs_tbl,
+                               height = "550px"))
+```
+
+*Le taux de testing mesure la proportion d’alertes validées avec au moins un échantillon reçu, analysé ou avec un résultat enregistré. La fenêtre de 21 jours est basée sur la date de notification de l’alerte. Les zones de santé avec peu d’alertes validées présentent des taux instables, à interpréter avec prudence.*
+
+```{r testing-zs-lowest, include=FALSE}
+# Zones de santé aux taux de testing les plus faibles : toute la période (1 zone)
+# et 21 derniers jours (5 zones, parmi celles ayant des alertes récentes).
+zs_low_all <- cov_zs |>
+  slice_min(testing_rate_all, n = 1, with_ties = FALSE)
+
+zs_low_21 <- cov_zs |>
+  filter(n_validated_21 > 0) |>
+  slice_min(testing_rate_21, n = 5, with_ties = FALSE) |>
+  mutate(
+    lbl = paste0("**", zone_sante_notification, "** (", province_notification,
+                 ", ", fmt_pct(testing_rate_21 * 100), " % ; ",
+                 n_tested_21, "/", n_validated_21, " suspects testés)")
+  )
+zs_low_21_txt <- paste(zs_low_21$lbl, collapse = " ; ")
+```
+
+Sur l’ensemble de la période, la zone de santé avec le **taux de testing le plus faible** est **`r zs_low_all$zone_sante_notification`** (`r zs_low_all$province_notification`) avec **`r fmt_pct(zs_low_all$testing_rate_all * 100)` %** (`r zs_low_all$n_tested_all`/`r zs_low_all$n_validated` suspects testés), contre `r fmt_pct(cov_all$testing_rate_all * 100)` % au niveau national. Au cours des **21 derniers jours**, les taux de testing les plus faibles sont observés dans `r zs_low_21_txt`, très en deçà de la moyenne nationale de `r fmt_pct(cov_all$testing_rate_21 * 100)` % sur la même fenêtre. Ces zones appellent une vérification rapide de la chaîne alerte → prélèvement → laboratoire.
+
+## Tendance nationale de la positivité
+
+```{r positivity-all-table}
+#| tbl-cap: "Échantillonnage, traitement et positivité au niveau national (premier prélèvement par cas) : toute la période et 21 derniers jours"
+positivity_all_tbl <- tibble::tibble(
+  periode = c("Toute la période", "21 derniers jours"),
+  validated = fmt_num(c(cov_all$n_validated, cov_all$n_validated_21)),
+  sampled = c(
+    fmt_rate_ci(cov_all$pct_sampled,
+                cov_all$lower_sampled, cov_all$upper_sampled),
+    fmt_rate_ci(cov_all$pct_sampled_21,
+                cov_all$lower_sampled_21, cov_all$upper_sampled_21)
+  ),
+  collected = fmt_num(c(ind_all$counts$n_collected_all,
+                        ind_all$counts$n_collected_21)),
+  processed = fmt_num(c(ind_all$counts$n_processed_1st,
+                        pos_21_first_all$n_processed_1st_21)),
+  positivity = c(
+    fmt_rate_ci(ind_all$counts$positivity_rate_1st * 100,
+                ind_all$counts$ci_lower_1st * 100,
+                ind_all$counts$ci_upper_1st * 100),
+    fmt_rate_ci(pos_21_first_all$positivity_rate_1st_21 * 100,
+                pos_21_first_all$ci_lower_1st_21 * 100,
+                pos_21_first_all$ci_upper_1st_21 * 100)
+  )
+)
+
+k_base <- positivity_all_tbl |>
+  kableExtra::kbl(
+    col.names = c("Période", "Alertes validées",
+                  "Alertes échantillonnées (%, IC 95 %)",
+                  "Échantillons enregistrés", "1ers prélèv. traités",
+                  "Positivité (%, IC 95 %)"),
+    align = "lrcccc",
+    table.attr = 'id="tbl_positivity_all"'
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE) |>
+  kableExtra::column_spec(1, bold = TRUE)
+
+knitr::asis_output(dl_tbl_wrap("tbl_positivity_all", k_base, positivity_all_tbl))
+```
+
+*Le pourcentage d’alertes échantillonnées a pour dénominateur les alertes validées ; « Échantillons enregistrés » compte les prélèvements avec preuve laboratoire. Les « 1ers prélèvements traités » et la positivité portent sur le prélèvement sélectionné par cas (premier prélèvement avec résultat prioritaire) ; les prélèvements répétés n'y contribuent pas. La fenêtre de 21 jours pour l'échantillonnage suit la date de notification, tandis que celle du traitement et de la positivité suit la date de début des signes.*
+
+```{r positivity-trend-all}
+#| fig-cap: "Volume hebdomadaire (un prélèvement par cas et par semaine) et tendance lissée du taux de positivité (base : semaine épidémiologique de début des signes)"
+#| fig-width: 9.6
+#| fig-height: 6
+positivity_trend_onset_all
+dl_plot_btn("fig_pos_trend_all", positivity_trend_onset_all, 9.6, 6)
+```
+
+Sur l’ensemble de la période, **`r fmt_num(pos_overview_first$pos_all$n_processed)`** prélèvements sélectionnés par cas ont été traités, dont **`r fmt_num(pos_overview_first$pos_all$n_positive)`** positifs, soit une positivité globale de **`r fmt_pct(pos_overview_first$pos_all$positivity_rate * 100)` %** (IC 95 % : `r fmt_ci(pos_overview_first$pos_all$ci_lower * 100, pos_overview_first$pos_all$ci_upper * 100)` %). La figure superpose le volume hebdomadaire (un prélèvement par cas et par semaine, barres) et le taux de positivité lissé (courbe rouge) avec son IC 95 % ; elle permet de repérer les vagues de transmission (hausse conjointe du volume et de la positivité) et les semaines à interprétation fragile (faible volume).
+
+## Tendances de la positivité par province
+
+```{r positivity-prov-table}
+#| tbl-cap: "Échantillonnage, traitement et positivité par province (premier prélèvement par cas) : toute la période et 21 derniers jours"
+positivity_prov_tbl <- bind_rows(
+  ind_prov$counts |>
+    left_join(
+      cov_prov |>
+        select(province_notification, n_validated, n_sampled,
+               pct_sampled, lower_sampled, upper_sampled),
+      by = "province_notification"
+    ) |>
+    transmute(
+      province_notification,
+      periode = "Toute la période",
+      validated = fmt_num(n_validated),
+      sampled = fmt_rate_ci(pct_sampled, lower_sampled, upper_sampled),
+      collected = fmt_num(n_collected_all),
+      processed = fmt_num(n_processed_1st),
+      positivity = fmt_rate_ci(positivity_rate_1st * 100,
+                               ci_lower_1st * 100, ci_upper_1st * 100)
+    ),
+  ind_prov$counts |>
+    left_join(
+      cov_prov |>
+        select(province_notification, n_validated_21, n_sampled_21,
+               pct_sampled_21, lower_sampled_21, upper_sampled_21),
+      by = "province_notification"
+    ) |>
+    transmute(
+      province_notification,
+      periode = "21 derniers jours",
+      validated = fmt_num(n_validated_21),
+      sampled = fmt_rate_ci(pct_sampled_21,
+                            lower_sampled_21, upper_sampled_21),
+      collected = fmt_num(n_collected_21),
+      processed = fmt_num(n_processed_1st_21),
+      positivity = fmt_rate_ci(positivity_rate_1st_21 * 100,
+                               ci_lower_1st_21 * 100, ci_upper_1st_21 * 100)
+    )
+  ) |>
+  mutate(periode = factor(periode,
+                          levels = c("Toute la période", "21 derniers jours"))) |>
+  arrange(province_notification, periode)
+
+positivity_prov_groups <- positivity_prov_tbl |>
+  summarise(n = n(), .by = province_notification)
+
+k_base <- positivity_prov_tbl |>
+  kableExtra::kbl(
+    col.names = c("Province", "Période", "Alertes validées",
+                  "Alertes échantillonnées (%, IC 95 %)",
+                  "Échantillons enregistrés", "1ers prélèv. traités",
+                  "Positivité (%, IC 95 %)"),
+    align = "llrcccc",
+    table.attr = 'id="tbl_positivity_prov"'
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) |>
+  kableExtra::column_spec(1, bold = TRUE) |>
+  kableExtra::pack_rows(index = setNames(positivity_prov_groups$n,
+                                         positivity_prov_groups$province_notification))
+
+knitr::asis_output(dl_tbl_wrap("tbl_positivity_prov", k_base, positivity_prov_tbl,
+                               height = "550px"))
+```
+
+```{r positivity-trend-prov}
+#| fig-cap: "Volume hebdomadaire (un prélèvement par cas et par semaine) et tendance lissée du taux de positivité par province (base : semaine épidémiologique de début des signes)"
+#| fig-width: 9.6
+#| fig-height: 6
+# Graphiques produits par scripts/lab.analysis.R (section 3c) : mêmes seuils
+# d'inclusion (min_weeks_plot / min_weeks_smooth) que les sorties du script.
+anchors <- character()
+for (g in names(pos_trend_first_prov_list)) {
+  print(pos_trend_first_prov_list[[g]])
+  key <- gsub("[^[:alnum:]_]", "_", g)
+  anchors <- c(anchors, dl_plot_html(
+    paste0("fig_pos_trend_prov_", key),
+    pos_trend_first_prov_list[[g]], 9.6, 6))
+}
+knitr::asis_output(paste0(anchors, collapse = "\n"))
+```
+
+Les tendances provinciales permettent de situer la transmission dans l'espace : une positivité supérieure à la moyenne nationale sur plusieurs semaines, associée à un volume d'échantillons soutenu, signale une transmission active qui justifie un renforcement de la surveillance et de la réponse dans la province concernée.
+
+## Positivité par zone de santé
+
+```{r zs-pos-table}
+#| tbl-cap: "Premiers prélèvements traités, positifs et taux de positivité par zone de santé (IC 95 %) — tri par taux décroissant au sein de chaque province"
+zs_pos_tbl <- pos_overview_first$pos_zs |>
+  left_join(
+    cov_zs |>
+      select(province_notification, zone_sante_notification,
+             testing_rate_all, testing_ci_lower_all, testing_ci_upper_all,
+             testing_rate_21, testing_ci_lower_21, testing_ci_upper_21),
+    by = c("province_notification", "zone_sante_notification")
+  ) |>
+  mutate(
+    positivity_pct = fmt_pct(positivity_rate * 100),
+    ci = fmt_ci(ci_lower * 100, ci_upper * 100),
+    testing_all = fmt_rate_ci(testing_rate_all * 100,
+                              testing_ci_lower_all * 100,
+                              testing_ci_upper_all * 100),
+    testing_21 = fmt_rate_ci(testing_rate_21 * 100,
+                             testing_ci_lower_21 * 100,
+                             testing_ci_upper_21 * 100)
+  ) |>
+  arrange(province_notification, desc(positivity_rate)) |>
+  select(province_notification, zone_sante_notification,
+         n_processed, n_positive, positivity_pct, ci, testing_all, testing_21)
+
+zs_groups <- zs_pos_tbl |>
+  summarise(n = n(), .by = province_notification)
+
+k_base <- zs_pos_tbl |>
+  kableExtra::kbl(
+    col.names = c("Province", "Zone de santé",
+                  "1ers prélèv. traités", "Positifs",
+                  "Positivité (%)", "IC 95 %",
+                  "Taux de testing — toute la période (%, IC 95 %)",
+                  "Taux de testing — 21 derniers jours (%, IC 95 %)"),
+    align = "llrrrrcc",
+    table.attr = 'id="tbl_zs_pos"'
+  ) |>
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE, font_size = 11) |>
+  kableExtra::column_spec(1, bold = TRUE) |>
+  kableExtra::pack_rows(index = setNames(zs_groups$n, zs_groups$province_notification))
+
+knitr::asis_output(dl_tbl_wrap("tbl_zs_pos", k_base, zs_pos_tbl,
+                               height = "550px"))
+```
+
+La positivité par zone de santé est calculée sur un prélèvement avec résultat sélectionné par cas (les prélèvements répétés sont exclus). Les zones de santé en tête de chaque province (positivité la plus élevée) constituent des foyers prioritaires pour la surveillance active, la recherche des contacts et la sensibilisation communautaire. Les zones avec un faible volume de prélèvements traités doivent être interprétées avec prudence : l'IC 95 % y est large et le taux estimé peu stable.
+
+# Limites de l'analyse
+
+Les données de laboratoire mobilisées dans ce rapport présentent plusieurs limites qu'il convient de garder à l'esprit lors de l'interprétation des indicateurs, en particulier des taux de positivité :
+
+- **Saisie sélective des résultats dans le Tracker DHIS2.** Les résultats positifs sont plus susceptibles d'être saisis que les autres résultats (négatifs, manquants ou invalides). La positivité peut dès lors être **surestimée**, notamment dans les zones de santé où la complétude de la saisie des résultats non positifs est faible — c'est par exemple le cas des zones de santé de **Katwa** et **Butembo**. Les taux de positivité de ces zones doivent être interprétés avec prudence et comparés avec précaution à ceux des autres zones.
+- **Résultats non encore enregistrés dans le Tracker DHIS2.** Une partie des échantillons analysés peut ne pas encore avoir son résultat saisi dans le Tracker au moment de l'extraction des données (par exemple la situation de la zone de santé de **Mongbwalu**). Les volumes d'échantillons traités et les taux de positivité peuvent donc **sous-estimer** la situation réelle à la date de référence ; ces indicateurs devront être actualisés au fur et à mesure que la saisie des résultats sera complétée.
+
+En conséquence, les comparaisons entre zones de santé peuvent refléter, en partie, des différences de complétude de la saisie plutôt que de réelles différences épidémiologiques. La vérification régulière de la complétude de la saisie par zone de santé et la mise à jour des données sont recommandées avant d'utiliser ces indicateurs pour la prise de décision opérationnelle.
+
+# Synthèse et recommandations
+
+- Au niveau national, **`r fmt_pct(cov_all$pct_sampled)` %** des alertes validées ont été échantillonnées et **`r fmt_pct(cov_all$testing_rate_all * 100)` %** ont été testées ; la positivité globale, calculée sur le premier prélèvement par cas, est de **`r fmt_pct(pos_overview_first$pos_all$positivity_rate * 100)` %** (IC 95 % : `r fmt_ci(pos_overview_first$pos_all$ci_lower * 100, pos_overview_first$pos_all$ci_upper * 100)` %).
+- **Échantillonnage** : renforcer la collecte d'échantillons dans les provinces sous la moyenne nationale (cf. cascade par province).
+- **Chaîne d'acheminement** : réduire les pertes entre collecte et réception au laboratoire, en particulier dans les zones dont la destination est éloignée ou surchargée.
+- **Capacité laboratoire** : appuyer en priorité les laboratoires sous les seuils (réception ≤ 1 j, analyse ≤ 1 j, résultat ≤ 2 j) afin d'accélérer la confirmation des cas.
+- **Surveillance ciblée** : concentrer la réponse sur les zones de santé à forte positivité, tout en tenant compte du volume d’échantillons traités et du taux de testing pour hiérarchiser les actions.
+- **Taux de testing les plus faibles** : la zone de **`r zs_low_all$zone_sante_notification`** (`r zs_low_all$province_notification`) présente le taux de testing le plus faible sur toute la période (`r fmt_pct(zs_low_all$testing_rate_all * 100)` %, `r zs_low_all$n_tested_all`/`r zs_low_all$n_validated` suspects testés). Sur les 21 derniers jours, les taux les plus faibles concernent `r zs_low_21_txt`. Un appui opérationnel immédiat (échantillonnage, transport des échantillons vers le laboratoire) est recommandé pour ces zones.

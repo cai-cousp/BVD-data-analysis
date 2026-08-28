@@ -1,0 +1,238 @@
+---
+title: "Note méthodologique — Analyse des tendances et de l'adéquation des alertes, réponse EVD17"
+subtitle: "Suivi de la dynamique des volumes d'alertes et de la qualité de la surveillance par zone de santé"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    number-sections: true
+    theme: flatly
+  pdf:
+    toc: true
+    number-sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+```
+
+## Objectif
+
+Cette note documente la méthodologie utilisée pour analyser les **tendances temporelles des volumes d'alertes validées par zone de santé (ZS)** et évaluer si chaque ZS génère le volume d'alertes attendu compte tenu des seuils dérivés dans le script 01.
+
+La question opérationnelle à laquelle cette analyse répond est :
+
+> *Les zones de santé génèrent-elles le volume d'alertes attendu compte tenu de leurs seuils, et le volume d'alertes évolue-t-il dans le temps ?*
+
+Cette analyse s'appuie directement sur la synthèse des seuils du script 01, transformant des seuils statiques en suivi dynamique des tendances. Elle identifie les ZS qui sous-alertent (lacunes potentielles de surveillance), qui sur-alertent (poussées potentielles de faux positifs), ou qui fonctionnent dans les plages attendues, et signale les ZS présentant des tendances statistiquement significatives dans le volume d'alertes.
+
+---
+
+## Données d'entrée
+
+| Donnée | Source | Rôle |
+|---|---|---|
+| Liste linéaire EVD nettoyée | `DataCleaning/data/Output/` (dernier fichier) | Alertes validées depuis 2026 |
+| Table de synthèse des seuils | `output/01_thresholds_synthesis.rds` | Seuils inférieurs/supérieurs par ZS × fenêtre temporelle |
+
+Les deux données sont chargées et validées dans le script `R/02_alert_trends.R`. Les alertes sont restreintes aux conclusions validées et aux dates de 2026 à aujourd'hui.
+
+---
+
+## Préparation des données
+
+### Comptage des alertes
+
+Les alertes validées sont agrégées par **semaine épidémiologique**, **zone de santé** et **type** (alertes de cas vivants vs alertes de décès). Les comptages sont transformés en format large avec des colonnes séparées pour `case_alerts` et `death_alerts`, et une colonne `total_alerts` additionnant les deux.
+
+### Jointure avec les seuils
+
+Chaque combinaison semaine épidémiologique-ZS est associée à la fenêtre temporelle correspondante de la table des seuils (générée par le script 01). Cette jointure fournit les bornes inférieures et supérieures pour les alertes de cas et de décès qui définissent la plage attendue pour cette ZS et cette période.
+
+### Normalisation des seuils
+
+Les colonnes de seuils sont standardisées selon des conventions de nommage cohérentes (`case_lower`, `case_upper`, `death_lower`, `death_upper`) pour faciliter les calculs ultérieurs.
+
+---
+
+## Indice d'Adéquation des Alertes (AAI)
+
+### Justification
+
+Les seuils définissent les plages d'alertes attendues. L'Indice d'Adéquation des Alertes (AAI) quantifie comment les volumes d'alertes observés se comparent à ces attentes, fournissant une métrique unique qui capture si une zone de santé génère trop peu, trop ou le nombre attendu d'alertes.
+
+### Méthode
+
+Pour chaque ZS et semaine épidémiologique :
+
+1. **Calculer le point médian de la plage de seuils :**
+
+$$
+T_{\text{case}}^{\text{mid}} = \frac{T_{\text{case}}^{\text{lower}} + T_{\text{case}}^{\text{upper}}}{2}
+$$
+
+$$
+T_{\text{death}}^{\text{mid}} = \frac{T_{\text{death}}^{\text{lower}} + T_{\text{death}}^{\text{upper}}}{2}
+$$
+
+2. **Calculer les ratios d'adéquation :**
+
+$$
+A_{\text{case}} = \frac{\text{case\_alerts}}{T_{\text{case}}^{\text{mid}}}
+$$
+
+$$
+A_{\text{death}} = \frac{\text{death\_alerts}}{T_{\text{death}}^{\text{mid}}}
+$$
+
+Les ratios d'adéquation ne sont calculés que lorsque le point médian du seuil correspondant est fini et supérieur à zéro.
+
+3. **Calculer l'Indice d'Adéquation des Alertes** comme la moyenne des adéquations cas et décès :
+
+$$
+\text{AAI} = \frac{A_{\text{case}} + A_{\text{death}}}{2}
+$$
+
+L'AAI n'est calculé que lorsqu'au moins un ratio d'adéquation (cas ou décès) est disponible pour la semaine épidémiologique.
+
+### Interprétation
+
+- **AAI = 1,0** : Le volume d'alertes correspond exactement aux attentes.
+- **AAI < 1,0** : Moins d'alertes que prévu — sous-détection potentielle ou lacunes de surveillance.
+- **AAI > 1,0** : Plus d'alertes que prévu — sur-déclaration potentielle ou signal épidémique réel nécessitant investigation.
+
+---
+
+## Lissage temporel
+
+### Justification
+
+Les comptages d'alertes hebdomadaires sont intrinsèquement bruités en raison des délais de notification, des effets de week-end et de la variation stochastique. Le lissage révèle les tendances sous-jacentes en réduisant les fluctuations à court terme.
+
+### Méthode
+
+Une **moyenne mobile de 3 semaines** est appliquée aux comptages d'alertes de cas et de décès par ZS :
+
+$$
+\text{case\_alerts}_{3w,t} = \frac{\text{case\_alerts}_{t} + \text{case\_alerts}_{t-1} + \text{case\_alerts}_{t-2}}{3}
+$$
+
+La moyenne mobile est **alignée à droite**, ce qui signifie qu'elle inclut la semaine en cours et les deux semaines précédentes. Elle n'est calculée que lorsque les trois semaines ont des données non manquantes.
+
+### Interprétation
+
+Les valeurs lissées représentent la trajectoire récente du volume d'alertes, filtrant le bruit semaine par semaine. Cela facilite l'identification des augmentations ou diminutions soutenues du volume d'alertes.
+
+---
+
+## Test de tendance
+
+### Justification
+
+Identifier les zones de santé présentant des augmentations ou diminutions statistiquement significatives du volume d'alertes dans le temps. La détection des tendances permet une investigation proactive pour déterminer si les changements reflètent des évolutions épidémiologiques réelles ou des dynamiques du système de surveillance.
+
+### Méthode
+
+Pour chaque ZS avec **au moins 4 semaines de données AAI** :
+
+1. Appliquer le **test de tendance de Mann-Kendall** à la série temporelle du total d'alertes. Ce test non paramétrique détecte les tendances monotones (augmentation ou diminution constante) sans supposer la linéarité ou la normalité.
+
+2. Extraire le **τ (tau) de Kendall**, qui mesure la force et la direction de la tendance :
+    - τ varie de -1 (parfaitement décroissant) à +1 (parfaitement croissant).
+    - τ proche de 0 indique aucune tendance.
+
+3. Extraire la **valeur p**, qui quantifie la signification statistique de la tendance.
+
+4. Classifier la direction de la tendance :
+
+| Tendance | Critères | Interprétation |
+|---|---|---|
+| Croissante | p < 0,05 et τ > 0 | Tendance à la hausse statistiquement significative |
+| Décroissante | p < 0,05 et τ < 0 | Tendance à la baisse statistiquement significative |
+| Stable | p ≥ 0,05 | Aucune tendance statistiquement significative détectée |
+| Inconnue | Données insuffisantes ou échec du test | La tendance ne peut être déterminée |
+
+### Tendances récentes
+
+La même procédure de Mann-Kendall est appliquée aux **6 semaines les plus récentes** de données pour détecter les changements à court terme. Cela permet d'identifier les ZS où le volume d'alertes a récemment changé, même si la tendance à long terme est stable.
+
+### Pourquoi Mann-Kendall ?
+
+Le test de Mann-Kendall est préféré aux alternatives paramétriques (par exemple, régression linéaire) car :
+
+- Il ne suppose pas que la tendance est linéaire.
+- Il est robuste aux valeurs aberrantes et aux distributions non normales.
+- Il fonctionne avec des données ordinales ou continues.
+- Il est largement utilisé dans les séries temporelles épidémiologiques et environnementales.
+
+---
+
+## Catégorisation de l'adéquation
+
+### Justification
+
+Traduire les valeurs continues d'AAI en catégories opérationnelles pour l'évaluation de la qualité de la surveillance. Les catégories permettent une identification rapide des ZS nécessitant une intervention.
+
+### Méthode
+
+Pour chaque ZS, calculer l'**AAI moyen sur les 3 semaines les plus récentes** et classifier :
+
+| Catégorie | AAI moyen | Interprétation |
+|---|---|---|
+| **Sous-alerte** | < 0,5 | Volume d'alertes inférieur à la moitié de l'attendu ; lacunes potentielles de surveillance |
+| **Adéquat** | 0,5 – 2,0 | Volume d'alertes dans la plage attendue |
+| **Sur-alerte** | > 2,0 | Volume d'alertes supérieur au double de l'attendu ; poussée potentielle de faux positifs |
+
+### Interprétation
+
+- **Les ZS en sous-alerte** peuvent nécessiter une investigation sur :
+    - La qualité de la surveillance (les alertes sont-elles générées et investiguées ?)
+    - L'engagement communautaire (les communautés signalent-elles les cas suspects ?)
+    - Les barrières de notification (y a-t-il des contraintes logistiques ou de sécurité ?)
+
+- **Les ZS en sur-alerte** peuvent bénéficier de :
+    - Raffinement du triage des alertes (les alertes à faible risque sont-elles sur-investiguées ?)
+    - Investigation pour déterminer si la poussée reflète un signal épidémique réel
+    - Revue des critères d'alerte et des définitions communautaires
+
+### Classement
+
+Les ZS sont triées par AAI moyen (croissant), de sorte que les ZS en sous-alerte apparaissent en premier. Ce classement permet de prioriser les interventions de qualité de la surveillance.
+
+---
+
+## Limites et mises en garde
+
+- **L'AAI dépend de la qualité des seuils.** Si les seuils sont mal calibrés (par exemple, en raison de données EVD10 clairsemées ou de chiffres de population inexacts), les catégories d'adéquation seront trompeuses. Toujours interpréter l'AAI en conjonction avec les seuils sous-jacents.
+
+- **La fenêtre de lissage de 3 semaines introduit un délai.** Les changements brusques récents du volume d'alertes peuvent ne pas être immédiatement visibles dans la série lissée. Pour le suivi en temps réel, examiner à la fois les comptages bruts et lissés.
+
+- **Les tests de Mann-Kendall supposent l'indépendance temporelle.** Les séries d'alertes autocorrélées (où le comptage de cette semaine dépend de celui de la semaine dernière) peuvent gonfler la signification statistique. Si l'autocorrélation est suspectée, envisager un pré-blanchiment ou des tests de tendance alternatifs.
+
+- **Les catégories d'adéquation sont basées sur l'AAI moyen sur 3 semaines.** Une seule semaine de valeurs extrêmes peut déplacer la catégorie. Pour la stabilité, envisager d'utiliser l'AAI médian ou une fenêtre plus longue.
+
+- **Les ZS avec moins de 4 semaines de données sont exclues du test de tendance.** Dans les ZS nouvellement activées ou à données clairsemées, les tendances ne peuvent être évaluées de manière fiable.
+
+- **L'AAI traite les alertes de cas et de décès de manière égale.** Dans les contextes où les alertes de décès sont des indicateurs plus fiables, envisager de les pondérer davantage.
+
+---
+
+## Glossaire
+
+| Symbole | Signification |
+|---|---|
+| AAI | Indice d'Adéquation des Alertes : moyenne des ratios d'adéquation cas et décès |
+| $A_{\text{case}}, A_{\text{death}}$ | Ratios d'adéquation pour les alertes de cas et de décès |
+| $T^{\text{mid}}$ | Point médian de la plage de seuils (inférieur + supérieur) / 2 |
+| τ (tau) | Coefficient de corrélation de rang de Kendall, mesurant la force et la direction de la tendance |
+| valeur p | Probabilité d'observer la tendance par hasard sous l'hypothèse nulle d'absence de tendance |
+| Test de Mann-Kendall | Test non paramétrique pour les tendances monotones dans les séries temporelles |
+| Moyenne mobile | Moyenne glissante sur une fenêtre fixe (ici, 3 semaines) |
+
+
+### Glossaire des colonnes (Français)
+
+```{r include_trends_glossary_fr, echo=FALSE, results='asis'}
+cat(readLines("../glossaries/02_trends_glossary_fr.md"), sep = "\n")
+```
