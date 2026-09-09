@@ -7,9 +7,9 @@ multiple data sources (baseline mortality, the historical Beni alert database,
 and the current case line list), and tracks whether each health zone is
 generating the expected volume of validated alerts.
 
-> **The Shiny dashboard is a separate project** and lives in its own GitHub
-> repository. This repository contains only the analysis pipeline, helpers,
-> tests, and documentation.
+> 🌐 **Interactive Shiny App (GitHub Pages)**: [https://cai-cousp.github.io/BVD-Alert-performance/](https://cai-cousp.github.io/BVD-Alert-performance/)
+>
+> The web dashboard runs as a zero-server Shinylive (webR) application deployed on GitHub Pages. The app source and deployment scripts live in [`ShinyApp/`](ShinyApp/README.md).
 
 ## Context
 
@@ -32,7 +32,8 @@ See [docs/README.md](docs/README.md) for the consolidated documentation index
 │   ├── 01_alert_thresholds.R
 │   ├── 01b_alert_thresholds_windows.R
 │   ├── 02_alert_trends.R
-│   └── 03_alert_mapping_capacity.R
+│   ├── 03_alert_mapping_capacity.R
+│   └── 03b_alert_notification_performance_map.R
 ├── alert_helpers/              # Modular helper functions
 ├── tests/testthat/             # testthat unit and integration tests
 ├── trend_viewer.R              # Standalone trend viewer script
@@ -86,10 +87,19 @@ Rscript R/01_alert_thresholds.R
 Rscript R/01b_alert_thresholds_windows.R
 Rscript R/02_alert_trends.R
 Rscript R/03_alert_mapping_capacity.R
+Rscript R/03b_alert_notification_performance_map.R
 ```
 
 Outputs are written under `output/<YYYY_MM_DD>/` (gitignored; regenerated on
 each run).
+
+`R/03b_alert_notification_performance_map.R` renders a publication-style
+choropleth of health-zone notification performance (sous-notification /
+notification adéquate / surnotification) from the latest complete trends
+output. It uses the same visual conventions as the Lab.Analysis maps (national
+grey base, province outlines and labels, repelled zone labels, scale bar,
+north arrow and DRC inset), GRID3 v8 geography, and writes PNG/PDF plus data
+and audit artifacts next to the source data.
 
 ### Render the methods notes
 

@@ -2,11 +2,14 @@
 
 A polished, website-style Shiny application for interactive exploration of Ebola Virus Disease (BVD) alert thresholds and trends across health zones in the Democratic Republic of Congo.
 
+> 🌐 **Live GitHub Pages App**: [https://cai-cousp.github.io/BVD-Alert-performance/](https://cai-cousp.github.io/BVD-Alert-performance/)
+
 ## Overview
 
 This dashboard provides epidemiologists with interactive surveillance monitoring:
 
 - **Trends** — Longitudinal alert counts, threshold bands, adequacy indices, and model parameter synthesis tables (at aggregate ensemble and individual health zone levels)
+- **Interactive notification map** — Leaflet health-zone performance map with three-window hover indicators. Clicking a health zone synchronizes the health-zone section and its map-linked longitudinal tables.
 - **Export** — Report downloads (HTML) and data exports (Excel, CSV)
 
 ## Data Sources
@@ -35,12 +38,15 @@ ShinyApp/
 │   ├── global.R               # Data loading, shared constants (sourced once)
 │   ├── mod_utils.R            # Filter module, litera theme, helpers
 │   ├── mod_trends.R           # Tab 1: Trend charts, adequacy, synthesis tables
+│   ├── map_data_helpers.R     # Interactive notification map and selected-zone tables
+│   ├── mod_map.R              # Leaflet map module
 │   └── mod_export.R           # Tab 2: Export handlers
 ├── www/
 │   └── custom.css             # Website-style responsive styling
 └── tests/
     └── testthat/
         ├── test-mod_data_loading.R
+        ├── test-map_data_helpers.R
         └── test-mod_trends_tables.R
 ```
 
@@ -118,3 +124,38 @@ shinyApp(ui, server)
 See the methods notes for detailed computational approaches:
 - `methods_note_alert_thresholds.qmd` — Threshold computation methods
 - `methods_note_alert_trends.qmd` — Trend analysis and adequacy methods
+
+## Deployment to GitHub Pages (Shinylive / webR)
+
+The application can be deployed as a **zero-server static web application** on **GitHub Pages** using Posit's [Shinylive for R](https://github.com/posit-dev/r-shinylive), which runs R directly inside the user's browser via **webR (WebAssembly)**.
+
+### Architecture
+- **Self-Contained Bundle**: The app loads pre-computed indicators from `ShinyApp/data/` (manifest, synthesis, trends, and lightweight spatial layers).
+- **Optimized Map Geometry**: Spatial boundaries for affected provinces and health zones are compressed and simplified down to ~112 KB (from 54+ MB raw data), allowing fast client-side map rendering.
+- **Dual-Mode Operation**: When run locally with live analysis pipelines present, `global.R` continues auto-detecting new outputs in `Alerts/output/`. In Shinylive or when deployed statically, it seamlessly falls back to `ShinyApp/data/`.
+
+### 1. Preparing Bundled Data
+To refresh the bundled datasets from the latest analysis output:
+```bash
+Rscript ShinyApp/deploy/prepare_bundled_data.R
+```
+
+### 2. Exporting & Previewing Locally
+To export the static site and launch an instant local preview server:
+```bash
+# Export and start preview server at http://127.0.0.1:8080
+Rscript ShinyApp/deploy/build_shinylive.R --serve --port 8080
+```
+
+### 3. Automated GitHub Actions CI/CD
+A GitHub Actions workflow is located at `.github/workflows/deploy-shinylive.yml`.
+
+Every push to `main` involving `Alerts/ShinyApp/**` or `Alerts/output/**` will automatically:
+1. Bundle the latest analysis outputs and lightweight map layers.
+2. Export the site with `shinylive::export()`.
+3. Publish to GitHub Pages via `actions/deploy-pages@v4`.
+
+#### Enabling GitHub Pages in Repository Settings
+1. Go to repository **Settings > Pages** on GitHub.
+2. Under **Build and deployment > Source**, select **GitHub Actions**.
+3. Pushes to `main` (or triggering the workflow manually via `workflow_dispatch`) will publish the app to GitHub Pages: [https://cai-cousp.github.io/BVD-Alert-performance/](https://cai-cousp.github.io/BVD-Alert-performance/).
